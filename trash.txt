@@ -1,150 +1,164 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Register Page</title>
-    <style>
-        /* Reset some default styles */
-        body, html {
-            margin: 0;
-            padding: 0;
-            font-family: Arial, sans-serif;
-            background-color: #ffffff; /* Dark background color */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-        }
+import dash
+from dash import dcc, html, Input, Output, State
+import dash_bootstrap_components as dbc
 
-        .container {
-            display: flex;
-            width: 900px;
-            height: 600px;
-            background-color: #fff;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-        }
+# Initialize Dash app
+dash_app = dash.Dash(
+    __name__,
+    server=app,
+    external_stylesheets=[dbc.themes.FLATLY, "/assets/custom.css"],
+    url_base_pathname="/home/",
+    use_pages=True,
+)
 
-        .register-form {
-            flex: 1;
-            padding: 50px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+# Define the vertical navbar
+navbar = dbc.Nav(
+    [
+        # App Name
+        dbc.NavLink(
+            "Budget Buddy",
+            href="/home/dashboard",
+            className="navbar-brand",
+            style={
+                "font-size": "1.5rem",
+                "font-weight": "bold",
+                "color": "#007BFF",
+                "margin-bottom": "20px",
+                "text-align": "center",
+            },
+        ),
+        # Navigation Links
+        dbc.NavLink(
+            "Dashboard",
+            href="/home/dashboard",
+            active="exact",
+            className="nav-link",
+            style={"font-size": "1.1rem", "margin": "5px 0", "color": "#333"},
+        ),
+        dbc.NavLink(
+            "Generate Grants",
+            href="/home/generate-grants",
+            active="exact",
+            className="nav-link",
+            style={"font-size": "1.1rem", "margin": "5px 0", "color": "#333"},
+        ),
+        dbc.NavLink(
+            "Manage Grants",
+            href="/home/manage-grants",
+            active="exact",
+            className="nav-link",
+            style={"font-size": "1.1rem", "margin": "5px 0", "color": "#333"},
+        ),
+        dbc.NavLink(
+            "Settings",
+            href="/home/settings",
+            active="exact",
+            className="nav-link",
+            style={"font-size": "1.1rem", "margin": "5px 0", "color": "#333"},
+        ),
+        dbc.NavLink(
+            "Profile",
+            href="/home/profile",
+            active="exact",
+            className="nav-link",
+            style={"font-size": "1.1rem", "margin": "5px 0", "color": "#333"},
+        ),
+        dbc.NavLink(
+            "Logout",
+            href="/home/logout",
+            active="exact",
+            className="nav-link",
+            style={"font-size": "1.1rem", "margin": "5px 0", "color": "#DC3545"},
+        ),
+    ],
+    vertical=True,
+    pills=True,
+    style={
+        "background-color": "#f8f9fa",
+        "padding": "20px",
+        "border-radius": "10px",
+        "box-shadow": "2px 2px 10px rgba(0, 0, 0, 0.1)",
+    },
+)
 
-        .register-form h2 {
-            color: #e74c3c; /* Pinkish-red color */
-            font-size: 36px;
-            margin-bottom: 20px;
-        }
+# Main layout
+dash_app.layout = dbc.Container(
+    children=[
+        dcc.Location(id="url", refresh=True),
+        dbc.Row(
+            [
+                # Sidebar Column
+                dbc.Col(
+                    [
+                        navbar,
+                    ],
+                    width=2,
+                    style={
+                        "background-color": "#f8f9fa",
+                        "height": "100vh",
+                        "padding": "20px",
+                    },
+                ),
+                # Main Content Column
+                dbc.Col(
+                    [
+                        dbc.Alert(
+                            [
+                                html.Div(
+                                    children=[
+                                        html.H4("Dashboard", id="dash_app_heading")
+                                    ],
+                                    className="dash_app_heading",
+                                )
+                            ],
+                            color="primary",
+                            style={
+                                "text-align": "left",
+                                "font-size": "1.5rem",
+                                "margin-bottom": "10px",
+                                "border-left": "2px solid black",
+                            },
+                        ),
+                        html.Div(
+                            children=[page_container],
+                            style={
+                                "padding": "0px 10px 10px 10px",  # top, right, bottom, left
+                            },
+                        ),
+                    ],
+                    width=10,
+                    style={"padding": "0px"},
+                ),
+            ]
+        ),
+    ],
+    style={"min-width": "1400px"},
+    fluid=True,
+    className="main_body",
+)
 
-        .register-form p {
-            color: #333;
-            font-size: 18px;
-            margin-bottom: 30px;
-        }
-
-        .register-form input {
-            width: 100%;
-            padding: 12px 20px;
-            margin: 10px 0;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            box-sizing: border-box;
-        }
-
-        .register-form button {
-            width: 100%;
-            padding: 12px 20px;
-            background-color: #e74c3c; /* Pinkish-red color */
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 18px;
-        }
-
-        .register-form button:hover {
-            background-color: #cf3a2d; /* Slightly darker shade */
-        }
-
-        .image-section {
-            flex: 1;
-            background-color: #e74c3c; /* Pinkish-red color */
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .image-section {
-            /* max-width: 80%;
-            max-height: 80%; */
-            background-image: url("static/images/register.jpg");
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            padding: 0;
-        }
-
-        .invalid {
-            border-bottom: 2px solid red;
-        }
-        .valid {
-            border-bottom: 2px solid green;
-        }
-
-    </style>
-</head>
-<body>
-    <div class="container">
-        <!-- Registration Form Section -->
-        <div class="register-form">
-            <h2>Register</h2>
-            <p>Create your account.</p>
-            <form action="/register" method="POST">
-                <input type="text" placeholder="Username" name="username" required>
-                <input type="email" placeholder="Email"  name="email" required>
-                <input type="password" placeholder="Password" name="password" id="password" required>
-                <input type="password" placeholder="Confirm Password" id="confirm-password" required>
-                <button type="submit" id="register-btn" disabled >REGISTER</button>
-            </form>
-            <p style="margin-top: 20px;">Already have an account? <a href="/login" style="color: #e74c3c;">Login here</a></p>
-        </div>
-
-        <!-- Image Section -->
-        <div class="image-section">
-            <!-- <img src="static/images/register.jpg" alt="Register Illustration"> -->
-        </div>
-    </div>
+# Callback to update the heading based on the URL
+@dash_app.callback(
+    Output("dash_app_heading", "children"),  # Correct property to update
+    Input("url", "pathname"),  # Correct input property
+)
+def change_dash_app_heading(url):
+    if url == "/home/dashboard":
+        return "Dashboard"
+    elif url == "/home/generate-grants":
+        return "Generate Grants"
+    elif url == "/home/manage-grants":
+        return "Manage Grants"
+    elif url == "/home/settings":
+        return "Settings"
+    elif url == "/home/profile":
+        return f"Hello {current_user.first_name}!"
+    elif url == "/home/logout":
+        return "Logout"
+    return "Welcome!"  # Default message
 
 
-
-    <script>
-        function validatePasswords() {
-            const password = document.getElementById("password").value;
-            const confirmPassword = document.getElementById("confirm-password").value;
-            const confirmPasswordField = document.getElementById("confirm-password");
-            const registerBtn = document.getElementById("register-btn");
-
-            if (password !== confirmPassword) {
-                confirmPasswordField.classList.add("invalid");
-                confirmPasswordField.classList.remove("valid");
-                registerBtn.disabled = true;  // Disable register button
-                return false;  // Prevent form submission
-            } else {
-                confirmPasswordField.classList.add("valid");
-                confirmPasswordField.classList.remove("invalid");
-                registerBtn.disabled = false;  // Enable register button
-                return true;  // Allow form submission
-            }
-        }
-
-        // Enable/Disable Register button when passwords match
-        document.getElementById("password").addEventListener("input", validatePasswords);
-        document.getElementById("confirm-password").addEventListener("input", validatePasswords);
-    </script>
-
-
-</body>
-</html>
+if __name__ == "__main__":
+    app.run(debug=True)
+    with app.app_context():
+        db.create_all()

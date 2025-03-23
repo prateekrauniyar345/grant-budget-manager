@@ -7,6 +7,7 @@ from flask_bcrypt import Bcrypt
 import os
 from dash import Dash, html, dcc, callback, Input, Output, page_container, page_registry, register_page
 import dash_bootstrap_components as dbc
+from flask_login import LoginManager, login_user, current_user
 
 
 
@@ -31,6 +32,11 @@ CORS(app, origins=["http://127.0.0.1:5000"])
 db.init_app(app)  # Bind SQLAlchemy with the app
 bcrypt = Bcrypt(app)
 
+# Initialize the login manager
+login_manager = LoginManager()
+login_manager.init_app(app)
+
+
 
 @app.route("/",  methods=["GET", "POST"])  
 def default():
@@ -52,6 +58,7 @@ def login():
                 # Successful login
                 session['user_id'] = user.id  
                 session['username'] = user.username  
+                login_user(user)
                 return redirect(url_for('home'))  
             else:
                 error_message = "Incorrect password. Please try again."  
@@ -69,6 +76,9 @@ def register():
         username = request.form["username"]
         email = request.form["email"]
         password = request.form["password"]
+        fname = request.form["first_name"]
+        lname = request.form["last_name"]
+
 
         # Check if user already exists
         existing_user = User.query.filter((User.username == username) | (User.email == email)).first()
@@ -76,7 +86,7 @@ def register():
             return redirect(url_for("register"))
 
         # Create new user and hash password
-        new_user = User(username=username, email=email)
+        new_user = User(username=username, email=email, first_name=fname, last_name=lname)
         new_user.set_password(password)  # Hash password before saving
 
         # Save to database
@@ -88,9 +98,14 @@ def register():
     return render_template("register.html")  # Show registration form
 
 
+@login_manager.user_loader
+def load_user(user_id):
+    # print("user id is : " , User.query.get(user_id))
+    return User.query.get(user_id)  
 
 @app.route('/home')
 def home():
+    print("Current user:", current_user)
     # print("current user is " , current_user.username)
     return redirect('/home/dashboard')  # Redirect to a specific Dash page
 
@@ -251,7 +266,7 @@ def change_dash_app_heading(url):
     elif url == "/home/settings":
         return "Settings"
     elif url == "/home/profile":
-        return f"Hello !"
+        return f"Hello {current_user.username.upper()}!"
     elif url == "/home/logout":
         return "Logout"
     return "Welcome!"  # Default message

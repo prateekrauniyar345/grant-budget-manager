@@ -2,6 +2,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from dotenv import load_dotenv
 from datetime import datetime
+from flask_login import UserMixin
 
 import os
 
@@ -16,9 +17,12 @@ bcrypt = Bcrypt()
 
 
 # User Model
-class User(db.Model):
+class User(db.Model,UserMixin ):
     __tablename__ = 'users'  # Specify the correct table name
+
     id = db.Column(db.Integer, primary_key=True)
+    first_name = db.Column(db.String(50))
+    last_name = db.Column(db.String(50))
     username = db.Column(db.String(50), nullable=False, unique=True)
     email = db.Column(db.String(100), nullable=False, unique=True)
     password = db.Column(db.String(255), nullable=False)  # Store hashed password
@@ -31,6 +35,9 @@ class User(db.Model):
     def check_password(self, password):
         """Verify a password"""
         return bcrypt.check_password_hash(self.password, password)
+    
+    def __repr__(self):
+        return f'<User {self.username}>'
 
 
 

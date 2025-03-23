@@ -2,7 +2,7 @@ import dash
 from dash import html
 
 
-dash.register_page(__name__, path='/manage_grants')
+dash.register_page(__name__, path='/manage-grants')
 
 def layout():
     layout = html.Div([
