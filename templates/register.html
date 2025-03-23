@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register Page</title>
+    <style>
+        /* Reset some default styles */
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #ffffff; /* Dark background color */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        input:focus {
+            outline: none;
+        }
+
+
+        .container {
+            display: flex;
+            width: 900px;
+            height: 600px;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .register-form {
+            flex: 1;
+            padding: 50px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .register-form h2 {
+            color: #e74c3c; /* Pinkish-red color */
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+
+        .register-form p {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+
+        .register-form input {
+            width: 100%;
+            padding: 12px 20px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .register-form button {
+            width: 100%;
+            padding: 12px 20px;
+            background-color: #e74c3c; /* Pinkish-red color */
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .register-form button:hover {
+            background-color: #cf3a2d; /* Slightly darker shade */
+        }
+
+        .image-section {
+            flex: 1;
+            background-color: #e74c3c; /* Pinkish-red color */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .image-section {
+            /* max-width: 80%;
+            max-height: 80%; */
+            background-image: url("static/images/register.jpg");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            padding: 0;
+        }
+
+        .invalid {
+            border: 2px solid red;
+        }
+        .valid {
+            border: 2px solid green;
+        }
+
+        .error-message {
+            color: red;
+            font-size: 14px;
+            margin-top: 10px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Registration Form Section -->
+        <div class="register-form">
+            <h2>Register</h2>
+            <p>Create your account.</p>
+            <form id="registration-form" action="/register" method="POST">
+                <input type="text" placeholder="Username" name="username" required>
+                <input type="email" placeholder="Email"  name="email" required>
+                <input type="password" placeholder="Password" name="password" id="password" required>
+                <input type="password" placeholder="Confirm Password" id="confirm-password" required>
+                <button type="submit" id="register-btn">REGISTER</button>
+                <p class="error-message" id="error-message" style="font-size: 14px; text-align: center; margin: 0px;">Passwords do not match.</p>
+            </form>
+            <p style="margin-top: 10px;">Already have an account? <a href="/login" style="color: #e74c3c;">Login here</a></p>
+        </div>
+
+        <!-- Image Section -->
+        <div class="image-section">
+            <!-- <img src="static/images/register.jpg" alt="Register Illustration"> -->
+        </div>
+    </div>
+
+    <script>
+        function validatePasswords() {
+            const password = document.getElementById("password").value;
+            const confirmPassword = document.getElementById("confirm-password").value;
+            const confirmPasswordField = document.getElementById("confirm-password");
+            const errorMessage = document.getElementById("error-message");
+            const submit_button = document.getElementById("register-btn");
+    
+            // Reset error message and styles
+            errorMessage.textContent = "";
+            confirmPasswordField.style.border = "1px solid #ccc"; // Reset border color
+    
+            // Check password length
+            if (password.length < 8) {
+                errorMessage.textContent = "Password must be at least 8 characters long.";
+                errorMessage.style.display = "block"; // Show error message
+                submit_button.disabled = true; // Disable the button
+                return false; // Prevent form submission
+            }
+    
+            // Check if passwords match
+            if (password !== confirmPassword) {
+                errorMessage.textContent = "Passwords do not match.";
+                confirmPasswordField.style.border = "1px solid red"; // Add red border
+                errorMessage.style.display = "block"; // Show error message
+                submit_button.disabled = true; // Disable the button
+                return false; // Prevent form submission
+            }
+    
+            // If all validations pass
+            confirmPasswordField.style.border = "1px solid green"; // Add green border
+            errorMessage.style.display = "none"; // Hide error message
+            submit_button.disabled = false; // Enable the button
+            return true; // Allow form submission
+        }
+    
+        // Attach event listeners to both password fields
+        document.getElementById("password").addEventListener("input", validatePasswords);
+        document.getElementById("confirm-password").addEventListener("input", validatePasswords);
+    
+        // Prevent form submission if validation fails
+        document.getElementById("registration-form").addEventListener("submit", function(event) {
+            if (!validatePasswords()) {
+                event.preventDefault(); // Stop form submission
+            }
+        });
+    </script>
+
+
+
+</body>
+</html>

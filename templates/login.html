@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Page</title>
+    <style>
+        /* Reset some default styles */
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #ffffff; /* Dark background color */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            width: 900px;
+            height: 600px;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .login-form {
+            flex: 1;
+            padding: 50px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .login-form h2 {
+            color: #e74c3c; /* Pinkish-red color */
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+
+        .login-form p {
+            color: #333;
+            font-size: 18px;
+            margin-bottom: 30px;
+        }
+
+        .login-form input {
+            width: 100%;
+            padding: 12px 20px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .login-form button {
+            width: 100%;
+            padding: 12px 20px;
+            background-color: #e74c3c; /* Pinkish-red color */
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .login-form button:hover {
+            background-color: #cf3a2d; /* Slightly darker shade */
+        }
+
+        .image-section {
+            flex: 1;
+            background-color: #e74c3c; /* Pinkish-red color */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .image-section {
+            background-image: url("static/images/login.jpg");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            padding: 0;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Login Form Section -->
+        <div class="login-form">
+            <h2>Login Form</h2>
+            <p>Enter your login credentials.</p>
+            <form action="/login" method="POST">
+                <input type="email" placeholder="Email" name="email" required>
+                <input type="password" placeholder="Password" name="password" required>
+                <button type="submit">LOGIN</button>
+            </form>
+            <!-- Display error message if it exists -->
+            {% if error_message %}
+                <div class="error-message" style="font-size: 14px; text-align: center; margin: 0px;">
+                    {{ error_message }}
+                </div>
+            {% endif %}
+            <p style="margin-top: 20px;">Don't have an account? <a href="/register" style="color: #e74c3c;">Sign up here</a></p>
+        </div>
+
+        <!-- Image Section -->
+        <div class="image-section">
+            <!-- <img src="static/images/login.jpg" alt="Login Illustration"> -->
+        </div>
+    </div>
+</body>
+</html>

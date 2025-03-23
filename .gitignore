@@ -1,0 +1,63 @@
+# Ignore Python bytecode files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.pdb
+
+# Ignore virtual environment directories
+venv/
+env/
+.venv/
+.env/
+
+# Ignore configuration files for local environments
+instance/
+*.env
+.flaskenv
+
+# Ignore database files (SQLite for example)
+*.db
+*.sqlite3
+
+# Ignore the application logs
+*.log
+
+# Ignore IDE/editor specific files
+.vscode/
+.idea/
+
+# Ignore test coverage reports
+.coverage
+nosetests.xml
+coverage.xml
+*.cover
+
+# Ignore Flask-specific directories
+*.pot
+*.pyc
+
+# Ignore Dash-specific build artifacts
+assets/
+
+# Ignore Flask sessions and cookies (if any)
+*.cookie
+
+# Ignore any other files you don't want to track
+*.bak
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Ignore Dash-related compiled assets
+/assets/*
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+
+
+# Ignore hidden files (starting with ._)
+._*
