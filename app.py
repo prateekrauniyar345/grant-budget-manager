@@ -8,7 +8,7 @@ import os
 from dash import Dash, html, dcc, callback, Input, Output, page_container, page_registry, register_page
 import dash_bootstrap_components as dbc
 from flask_login import LoginManager, login_user, current_user
-
+import urllib
 
 
 
@@ -19,14 +19,21 @@ load_dotenv()
 app = Flask(__name__, static_folder="static")
 app.secret_key = os.getenv("APP_SECRET_KEY")  # Required for flash messages
 
+# Enable CORS for all routes
+CORS(app, origins=["http://127.0.0.1:5000"])
 
+
+# MySQL Database Configuration
+# MySQL Database Configuration
+mysql_password = os.getenv('DB_PASSWORD')
+print("mysql password is : ", mysql_password)
+db_password_quoted = urllib.parse.quote(mysql_password)
+print("hashed password is : ", db_password_quoted)
 
 # MySQL Database Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Enable CORS for all routes
-CORS(app, origins=["http://127.0.0.1:5000"])
 
 
 db.init_app(app)  # Bind SQLAlchemy with the app
@@ -183,7 +190,7 @@ navbar = dbc.Nav(
     pills=True,
     style={
         "background-color": "#f8f9fa",
-        "padding": "0px 20px",
+        "padding": "10px 10px",
         "font-size" : "34px", 
         # "border-radius": "10px",
         # "box-shadow": "2px 2px 10px rgba(0, 0, 0, 0.1)",
@@ -228,7 +235,7 @@ dash_app.layout = dbc.Container(
                                 "font-size": "1.5rem",
                                 "margin-bottom": "10px",
                                 # "border-left": "2px solid black",
-                                # "border-radius" : "8px",
+                                "border-radius" : "0px",
                                 "background-color" : "#f8f9fa",
                                 "border" : "none",
                             },

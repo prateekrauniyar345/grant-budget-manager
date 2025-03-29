@@ -7,6 +7,7 @@ flask-bcrypt
 python-dotenv
 flask-cors
 flask_login 
+dash-table
 
 
 
@@ -25,6 +26,10 @@ Flask-Caching
 # Database (MySQL)
 Flask-SQLAlchemy
 pymysql
+cryptography
+PyMySQL
+mysql-connector-python
+
 
 # deployment
 gunicorn
@@ -32,3 +37,8 @@ gunicorn
 
 # setup
 setuptools
+
+
+
+# excels
+openpyxl
