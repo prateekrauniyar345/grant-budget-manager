@@ -67,14 +67,14 @@ def display_grants(id):
                     dbc.Col(html.Div(grant.title), width=2),
                     dbc.Col(html.Div(grant.created_at.strftime('%Y-%m-%d')), width=2),
                     dbc.Col(html.Div(grant.funding_agency), width=1),
-                    dbc.Col(html.Div(grant.start_date.strftime('%Y-%m-%d')), width=1),
+                    dbc.Col(html.Div(grant.start_date.strftime('%Y-%m-%d')), width=2),
                     dbc.Col(html.Div(grant.end_date.strftime('%Y-%m-%d')), width=2),
                     dbc.Col(html.Div([
                         dbc.Button("Edit", n_clicks=0,  id={'type': 'edit-btn', 'index': grant.id}, className="btn btn-warning btn-sm me-2"),
                         dbc.Button("Delete", n_clicks=0,  id={'type': 'delete-btn', 'index': grant.id}, className="btn btn-danger btn-sm me-2"),
                         dbc.Button("Manage", n_clicks=0,  id={'type': 'manage-btn', 'index': grant.id}, className="btn btn-info btn-sm me-2"),
                         dbc.Button("Download Excel", n_clicks=0,  id={'type': 'download-excel-btn', 'index': grant.id}, className="btn btn-success btn-sm me-2", ), 
-                    ], style={"display": "flex", "gap": "10px", }), width=4)
+                    ], style={"display": "flex", "gap": "0px", }), width=3)
                 ], className="mb-2 p-2 rounded", style=row_style)
             )
 
@@ -85,9 +85,9 @@ def display_grants(id):
                     dbc.Col(html.Div("Grant Name", className="text-left p-2"), width=2),
                     dbc.Col(html.Div("Date Created", className="text-left p-2"), width=2),
                     dbc.Col(html.Div("Funding Agency", className="text-left p-2"), width=1),
-                    dbc.Col(html.Div("Start Date", className="text-left p-2"), width=1),
+                    dbc.Col(html.Div("Start Date", className="text-left p-2"), width=2),
                     dbc.Col(html.Div("End Date", className="text-left p-2"), width=2),
-                    dbc.Col(html.Div("Actions", className="text-left p-2"), width=4)
+                    dbc.Col(html.Div("Actions", className="text-left p-2"), width=3)
                 ], className="fw-bold mb-2 bg-light border rounded ", style={"font-size": "1rem", }),  # Styled header row
                 *rows  # Adding all the rows dynamically
             ])

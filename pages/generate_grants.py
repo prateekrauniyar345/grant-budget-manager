@@ -36,15 +36,25 @@ failure_toast = dbc.Toast(
 container = html.Div(
     children=[
         dbc.Container([
+            html.Div(
+                html.P("Budget Information", className="fw-bold")
+            ),
+            html.Hr(),
             dbc.Row([
                 dbc.Col([
                     dbc.Label("Grant Title"),
-                    dbc.Input(id='grant-title', type='text', placeholder="Enter Grant Title", className="mb-3"),
-                ], width=6),
+                    dbc.Input( 
+                        id={"type": "grant-input", "name": "grant-title"},
+                        type='text', 
+                        placeholder="Enter Grant Title", 
+                        className="mb-3 "
+                    ),
+                ], width=6,),
+                
                 dbc.Col([
                     dbc.Label("Funding Agency"),
                     dbc.Select(
-                        id='funding-agency',
+                        id={"type": "grant-input", "name": "funding-agency"},
                         options=[
                             {'label': 'NSF', 'value': 'NSF'},
                             {'label': 'NIH', 'value': 'NIH'},
@@ -59,12 +69,17 @@ container = html.Div(
             dbc.Row([
                 dbc.Col([
                     dbc.Label("Total Funding Amount ($)"),
-                    dbc.Input(id='total-funding', type='number', placeholder="Enter Total Funding Amount", className="mb-3"),
+                    dbc.Input(
+                        id={"type": "grant-input", "name": "total-funding"},
+                        type='number', 
+                        placeholder="Enter Total Funding Amount", 
+                        className="mb-3"
+                    ),
                 ], width=6),
                 dbc.Col([
                     dbc.Label("Grant Status"),
                     dbc.Select(
-                        id='grant-status',
+                        id={"type": "grant-input", "name": "grant-status"},
                         options=[
                             {'label': 'Draft', 'value': 'Draft'},
                             {'label': 'Submitted', 'value': 'Submitted'},
@@ -83,7 +98,7 @@ container = html.Div(
                     dbc.Label("Start Date"),
                     html.Br(),
                     dcc.DatePickerSingle(
-                        id='start-date',
+                        id={"type": "grant-input", "name": "start-date"},
                         min_date_allowed=date.today(),
                         initial_visible_month=date.today(),
                         date=date.today(),
@@ -94,7 +109,7 @@ container = html.Div(
                     dbc.Label("End Date"),
                     html.Br(),
                     dcc.DatePickerSingle(
-                        id='end-date',
+                        id={"type": "grant-input", "name": "end-date"},
                         min_date_allowed=date.today(),
                         initial_visible_month=date.today(),
                         date=date.today(),
@@ -106,21 +121,165 @@ container = html.Div(
             dbc.Row([
                 dbc.Col([
                     dbc.Label("Grant Description"),
-                    dbc.Textarea(id='grant-description', placeholder="Enter a detailed description of the grant", style={"height": "100px"}, className="mb-3"),
+                    dbc.Textarea(
+                        id={"type": "grant-input", "name": "grant-description"},
+                        placeholder="Enter a detailed description of the grant", 
+                        style={"height": "100px"}, 
+                        className="mb-3"
+                    ),
                 ], width=12),
             ], className="mb-4"),
 
+            # PI & Co-PI Section(budget personeels)
+            html.Div(html.P("Personeel Information", className="fw-bold")),
+            html.Hr(),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Name"),
+                    dbc.Input(
+                        id={"type": "grant-input", "name": "person-name", "index": 0},
+                        type='text',
+                        placeholder="Enter full name",
+                        className="mb-3"
+                    ),
+                ], width=6),
+
+                dbc.Col([
+                    dbc.Label("Position"),
+                    dbc.Select(
+                        id={"type": "grant-input", "name": "person-position", "index": 0},
+                        options=[
+                            {"label": "PI", "value": "PI"},
+                            {"label": "Co-PI", "value": "Co-PI"},
+                            {"label": "Senior Personnel", "value": "Senior Personnel"},
+                            {"label": "Collaborator", "value": "Collaborator"},
+                            {"label": "Professional Staff", "value": "UI Professional Staff"},
+                            {"label": "Postdoc", "value": "Postdoc"},
+                            {"label": "GRA", "value": "GRA"},
+                            {"label": "Undergrad", "value": "Undergrad"},
+                            {"label": "Temp Help", "value": "Temp Help"},
+                        ],
+                        placeholder="Select role",
+                        className="mb-3"
+                    ),
+                ], width=6),
+
+                html.Div(
+                    dbc.Button(
+                        "Add Person",
+                        id={"type": "grant-input", "name": "add-person-btn"},
+                        color="primary",
+                        className="mb-3 w-40",
+                        style={"text-align": "center"},
+                    ),
+                    className="d-flex justify-content-center",
+                ),
+            ]),
+            html.Br(),
+
+            # Expense Section
+            html.Div(html.P("Expense Information", className="fw-bold")),
+            html.Hr(),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("UI Professional Staff & Post Docs"),
+                    dbc.Input(id='ui-staff-expense', type='number', placeholder="Enter amount", className="mb-3"),
+                ]),
+                dbc.Col([
+                    dbc.Label("GRAs / UGrads"),
+                    dbc.Input(id='grads-expense', type='number', placeholder="Enter amount", className="mb-3"),
+                ]),
+                dbc.Col([
+                    dbc.Label("Temp Help"),
+                    dbc.Input(id='temp-help-expense', type='number', placeholder="Enter amount", className="mb-3"),
+                ]),
+            ]),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Travel - Domestic"),
+                    dbc.Input(id='travel-domestic', type='number', placeholder="Enter amount", className="mb-3"),
+                ]),
+                dbc.Col([
+                    dbc.Label("Travel - International"),
+                    dbc.Input(id='travel-international', type='number', placeholder="Enter amount", className="mb-3"),
+                ]),
+            ]),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Materials and Supplies"),
+                    dbc.Input(id='materials-supplies', type='number', placeholder="Enter amount", className="mb-3"),
+                ]),
+                dbc.Col([
+                    dbc.Label("Publication Costs"),
+                    dbc.Input(id='publication-costs', type='number', placeholder="Enter amount", className="mb-3"),
+                ]),
+            ]),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Grad Student Tuition & Health Insurance"),
+                    dbc.Input(id='tuition-health', type='number', placeholder="Enter amount", className="mb-3"),
+                ]),
+                dbc.Col([
+                    dbc.Label("Other Costs"),
+                    dbc.Textarea(id='other-costs', placeholder="Describe other costs", className="mb-3", style={"height": "100px"}),
+                ]),
+            ]),
+
+            # Fringe Section (auto-calculated – just for display)
+            html.Div(html.P("Fringe Benefit Rates (Auto Calculated)", className="fw-bold")),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Faculty Fringe (%)"),
+                    dbc.Input(id='faculty-fringe', type='number', disabled=True, className="mb-3"),
+                ]),
+                dbc.Col([
+                    dbc.Label("Post Doc Fringe (%)"),
+                    dbc.Input(id='postdoc-fringe', type='number', disabled=True, className="mb-3"),
+                ]),
+            ]),
+
+            # Indirect Cost and Totals
+            html.Div(html.P("Indirect Costs & Totals", className="fw-bold")),
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Indirect Cost Rate (%)"),
+                    dbc.Input(id='indirect-rate', type='number', disabled=True, className="mb-3"),
+                ]),
+                dbc.Col([
+                    dbc.Label("Total Project Cost"),
+                    dbc.Input(id='total-project-cost', type='number', disabled=True, className="mb-3"),
+                ]),
+            ]),
             dbc.Row(
                 [
                     dbc.Col(
                         [
-                            dbc.Button(
-                                "Submit",
-                                id="submit-btn",
-                                color="primary",
-                                className="w-40",
-                                style={"text-align": "center"},
-                            ),
+                            html.Div(
+                                children=[
+                                    dbc.Button(
+                                        "Save as Draft",
+                                        id="save-draft-btn",
+                                        color="secondary",
+                                        className="w-40",
+                                        style={"text-align": "center"},
+                                    ),
+                                    dbc.Button(
+                                        "Submit",
+                                        id="submit-btn",
+                                        color="primary",
+                                        className="w-40",
+                                        style={"text-align": "center"},
+                                    ),
+                                    dbc.Button(
+                                        "Clear",
+                                        id="clear-btn",
+                                        color="danger",
+                                        className="w-40",
+                                        style={"text-align": "center"},
+                                    ),
+                                ],
+                                style={"display" : "flex", "text-align": "center", "margin-top": "20px", "gap" : "20px"},
+                            )
                         ],
                         className="d-flex justify-content-center",
                     ),
@@ -128,6 +287,7 @@ container = html.Div(
                 className="mb-4",
                 justify="center",
             ), 
+
         ], fluid=True, id="grant-generator-sub-container"), 
     ], 
     id="grant-generator-container"
