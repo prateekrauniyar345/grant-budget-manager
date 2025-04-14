@@ -5,6 +5,7 @@ from datetime import date
 from models import Grant, User
 from db_utils import get_db_session
 from flask_login import current_user
+from dateutil.relativedelta import relativedelta
 
 # Register the page
 dash.register_page(__name__, path='/generate-grants')
@@ -68,13 +69,20 @@ container = html.Div(
 
             dbc.Row([
                 dbc.Col([
-                    dbc.Label("Total Funding Amount ($)"),
-                    dbc.Input(
-                        id={"type": "grant-input", "name": "total-funding"},
-                        type='number', 
-                        placeholder="Enter Total Funding Amount", 
+                    dbc.Label("Duration (In Years)"),
+                    dbc.Select(
+                        id={"type": "grant-input", "name": "total-duration"},
+                        options=[
+                            {"label": "1 Year", "value": 1},
+                            {"label": "2 Years", "value": 2},
+                            {"label": "3 Years", "value": 3},
+                            {"label": "4 Years", "value": 4},
+                            {"label": "5 Years", "value": 5},
+                        ],
+                        placeholder="Select Total Duration",
                         className="mb-3"
                     ),
+
                 ], width=6),
                 dbc.Col([
                     dbc.Label("Grant Status"),
@@ -112,8 +120,10 @@ container = html.Div(
                         id={"type": "grant-input", "name": "end-date"},
                         min_date_allowed=date.today(),
                         initial_visible_month=date.today(),
-                        date=date.today(),
-                        className="mb-3"
+                        date = None,
+                        # date=date.today(),
+                        className="mb-3", 
+                        disabled=True, 
                     ),
                 ], width=6),
             ], className="mb-4"),
@@ -165,14 +175,23 @@ container = html.Div(
                 ], width=6),
 
                 html.Div(
-                    dbc.Button(
-                        "Add Person",
-                        id={"type": "grant-input", "name": "add-person-btn"},
-                        color="primary",
-                        className="mb-3 w-40",
-                        style={"text-align": "center"},
-                    ),
-                    className="d-flex justify-content-center",
+                    children=[
+                        dbc.Button(
+                            "Add Person",
+                            id={"type": "grant-input", "name": "add-person-btn"},
+                            color="primary",
+                            className="mb-3 w-40",
+                            style={"text-align": "center"},
+                        ),
+                        dbc.Button(
+                            "Remove Person",
+                            id={"type": "grant-input", "name": "remove-person-btn"},
+                            color="danger",
+                            className="mb-3 w-40",
+                            style={"text-align": "center" , "display" : "none"},
+                        ),
+                    ], 
+                    className="d-flex justify-content-center gap-3",
                 ),
             ]),
             html.Br(),
@@ -225,31 +244,7 @@ container = html.Div(
                 ]),
             ]),
 
-            # Fringe Section (auto-calculated – just for display)
-            html.Div(html.P("Fringe Benefit Rates (Auto Calculated)", className="fw-bold")),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Label("Faculty Fringe (%)"),
-                    dbc.Input(id='faculty-fringe', type='number', disabled=True, className="mb-3"),
-                ]),
-                dbc.Col([
-                    dbc.Label("Post Doc Fringe (%)"),
-                    dbc.Input(id='postdoc-fringe', type='number', disabled=True, className="mb-3"),
-                ]),
-            ]),
-
-            # Indirect Cost and Totals
-            html.Div(html.P("Indirect Costs & Totals", className="fw-bold")),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Label("Indirect Cost Rate (%)"),
-                    dbc.Input(id='indirect-rate', type='number', disabled=True, className="mb-3"),
-                ]),
-                dbc.Col([
-                    dbc.Label("Total Project Cost"),
-                    dbc.Input(id='total-project-cost', type='number', disabled=True, className="mb-3"),
-                ]),
-            ]),
+            # action buttons
             dbc.Row(
                 [
                     dbc.Col(
@@ -356,3 +351,24 @@ def submit_grant(n_clicks, title, funding_agency, total_funding, status, start_d
 
     finally:
         session.close()
+
+
+
+
+
+@callback(
+    Output({"type": "grant-input", "name": "end-date"}, "date"),
+    Input({"type": "grant-input", "name": "start-date"}, "date"),
+    Input({"type": "grant-input", "name": "total-duration"}, "value"),
+    prevent_initial_call=True
+)
+def update_end_date(start_date, duration):
+    if start_date and duration:
+        try:
+            start_date_obj = date.fromisoformat(start_date)
+            duration_years = int(duration) 
+            end_date = start_date_obj + relativedelta(years=+duration_years)
+            return end_date.isoformat()
+        except Exception as e:
+            print("Error calculating end date:", e)
+    return None

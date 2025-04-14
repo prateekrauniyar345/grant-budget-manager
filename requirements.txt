@@ -17,6 +17,7 @@ openpyxl
 xlrd
 XlsxWriter
 numpy
+python-dateutil
 
 # caching and performance
 Flask-Caching
