@@ -6,6 +6,7 @@ from models import Grant, User
 from db_utils import get_db_session
 from flask_login import current_user
 from dateutil.relativedelta import relativedelta
+from dash import MATCH, ALL, ctx
 
 # Register the page
 dash.register_page(__name__, path='/generate-grants')
@@ -144,35 +145,8 @@ container = html.Div(
             html.Div(html.P("Personeel Information", className="fw-bold")),
             html.Hr(),
             dbc.Row([
-                dbc.Col([
-                    dbc.Label("Name"),
-                    dbc.Input(
-                        id={"type": "grant-input", "name": "person-name", "index": 0},
-                        type='text',
-                        placeholder="Enter full name",
-                        className="mb-3"
-                    ),
-                ], width=6),
-
-                dbc.Col([
-                    dbc.Label("Position"),
-                    dbc.Select(
-                        id={"type": "grant-input", "name": "person-position", "index": 0},
-                        options=[
-                            {"label": "PI", "value": "PI"},
-                            {"label": "Co-PI", "value": "Co-PI"},
-                            {"label": "Senior Personnel", "value": "Senior Personnel"},
-                            {"label": "Collaborator", "value": "Collaborator"},
-                            {"label": "Professional Staff", "value": "UI Professional Staff"},
-                            {"label": "Postdoc", "value": "Postdoc"},
-                            {"label": "GRA", "value": "GRA"},
-                            {"label": "Undergrad", "value": "Undergrad"},
-                            {"label": "Temp Help", "value": "Temp Help"},
-                        ],
-                        placeholder="Select role",
-                        className="mb-3"
-                    ),
-                ], width=6),
+                html.Div(id='personnel-section'),
+                # dcc.Store(id='personnel-store', data=[0]),
 
                 html.Div(
                     children=[
@@ -201,48 +175,50 @@ container = html.Div(
             html.Hr(),
             dbc.Row([
                 dbc.Col([
-                    dbc.Label("UI Professional Staff & Post Docs"),
-                    dbc.Input(id='ui-staff-expense', type='number', placeholder="Enter amount", className="mb-3"),
-                ]),
-                dbc.Col([
-                    dbc.Label("GRAs / UGrads"),
-                    dbc.Input(id='grads-expense', type='number', placeholder="Enter amount", className="mb-3"),
-                ]),
-                dbc.Col([
-                    dbc.Label("Temp Help"),
-                    dbc.Input(id='temp-help-expense', type='number', placeholder="Enter amount", className="mb-3"),
-                ]),
+                    dbc.Label("Estimated Work Hours", className=""),
+                    # Header row
+                    dbc.Row([
+                        dbc.Col(html.P("Name", className="mb-0 fw-semibold text-left"), width=3),
+                        dbc.Col(html.P("Position", className="mb-0 fw-semibold text-left"), width=2),
+                        dbc.Col(html.P("Hours for year(s)", className="mb-0 fw-semibold text-left"), width=5),
+                        dbc.Col(html.P("Same for Each Year", className="mb-0 fw-semibold text-left"), width=2),
+                    ], style={"backgroundColor": "#ced4da", "padding": "10px", "borderRadius": "6px"}, className="mb-2"),
+                    
+                    # Dynamic content goes here
+                    html.Div(id='estimated-hours-section')
+                ])
             ]),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Label("Travel - Domestic"),
-                    dbc.Input(id='travel-domestic', type='number', placeholder="Enter amount", className="mb-3"),
-                ]),
-                dbc.Col([
-                    dbc.Label("Travel - International"),
-                    dbc.Input(id='travel-international', type='number', placeholder="Enter amount", className="mb-3"),
-                ]),
-            ]),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Label("Materials and Supplies"),
-                    dbc.Input(id='materials-supplies', type='number', placeholder="Enter amount", className="mb-3"),
-                ]),
-                dbc.Col([
-                    dbc.Label("Publication Costs"),
-                    dbc.Input(id='publication-costs', type='number', placeholder="Enter amount", className="mb-3"),
-                ]),
-            ]),
-            dbc.Row([
-                dbc.Col([
-                    dbc.Label("Grad Student Tuition & Health Insurance"),
-                    dbc.Input(id='tuition-health', type='number', placeholder="Enter amount", className="mb-3"),
-                ]),
-                dbc.Col([
-                    dbc.Label("Other Costs"),
-                    dbc.Textarea(id='other-costs', placeholder="Describe other costs", className="mb-3", style={"height": "100px"}),
-                ]),
-            ]),
+
+            # dbc.Row([
+            #     dbc.Col([
+            #         dbc.Label("Travel - Domestic"),
+            #         dbc.Input(id='travel-domestic', type='number', placeholder="Enter amount", className="mb-3"),
+            #     ]),
+            #     dbc.Col([
+            #         dbc.Label("Travel - International"),
+            #         dbc.Input(id='travel-international', type='number', placeholder="Enter amount", className="mb-3"),
+            #     ]),
+            # ]),
+            # dbc.Row([
+            #     dbc.Col([
+            #         dbc.Label("Materials and Supplies"),
+            #         dbc.Input(id='materials-supplies', type='number', placeholder="Enter amount", className="mb-3"),
+            #     ]),
+            #     dbc.Col([
+            #         dbc.Label("Publication Costs"),
+            #         dbc.Input(id='publication-costs', type='number', placeholder="Enter amount", className="mb-3"),
+            #     ]),
+            # ]),
+            # dbc.Row([
+            #     dbc.Col([
+            #         dbc.Label("Grad Student Tuition & Health Insurance"),
+            #         dbc.Input(id='tuition-health', type='number', placeholder="Enter amount", className="mb-3"),
+            #     ]),
+            #     dbc.Col([
+            #         dbc.Label("Other Costs"),
+            #         dbc.Textarea(id='other-costs', placeholder="Describe other costs", className="mb-3", style={"height": "100px"}),
+            #     ]),
+            # ]),
 
             # action buttons
             dbc.Row(
@@ -290,7 +266,10 @@ container = html.Div(
 
 # Define the layout
 def layout():
+    
     return html.Div([
+        dcc.Store(id='personnel-store', data=[0]),
+        dcc.Store(id='personnel-values-store', data=None),
         html.H3('Generate Grants', className="text-center mt-4 mb-4", style={"color": "#2c3e50"}),
         dcc.Loading(
             type='circle',
@@ -354,8 +333,6 @@ def submit_grant(n_clicks, title, funding_agency, total_funding, status, start_d
 
 
 
-
-
 @callback(
     Output({"type": "grant-input", "name": "end-date"}, "date"),
     Input({"type": "grant-input", "name": "start-date"}, "date"),
@@ -372,3 +349,172 @@ def update_end_date(start_date, duration):
         except Exception as e:
             print("Error calculating end date:", e)
     return None
+
+
+# Callback to modify list of personnel row indices
+@callback(
+    Output('personnel-store', 'data'),
+    Output('personnel-values-store', 'data'),
+    Input({'type': 'grant-input', 'name': 'add-person-btn'}, 'n_clicks'),
+    Input({'type': 'grant-input', 'name': 'remove-person-btn'}, 'n_clicks'),
+    State('personnel-store', 'data'),
+    State({'type': 'grant-input', 'name': 'person-name', 'index': ALL}, 'value'),
+    State({'type': 'grant-input', 'name': 'person-position', 'index': ALL}, 'value'),
+    prevent_initial_call=True
+)
+def update_person_list(add_clicks, remove_clicks, current_data, names, positions):
+    # Preserve existing data
+    current_personnel = [
+        {'index': i, 'name': n, 'position': p}
+        for i, n, p in zip(current_data, names, positions)
+    ]
+    
+    triggered = ctx.triggered_id
+    if triggered and triggered['name'] == 'add-person-btn':
+        new_index = max(current_data) + 1 if current_data else 0
+        new_data = current_data + [new_index]
+    elif triggered and triggered['name'] == 'remove-person-btn':
+        if len(current_data) > 1:
+            new_data = current_data[:-1]
+            current_personnel = current_personnel[:-1]  # Drop last row's values
+        else:
+            new_data = current_data
+    else:
+        new_data = current_data
+
+    return new_data, current_personnel
+
+
+# Callback to render rows based on indices in personnel-store
+@callback(
+    Output('personnel-section', 'children'),
+    Input('personnel-store', 'data'),
+    State('personnel-values-store', 'data')
+)
+def render_personnel_rows(indexes, stored_data):
+    stored_data = stored_data or []
+    index_to_data = {item['index']: item for item in stored_data}
+    
+    rows = []
+    for i in indexes:
+        person_data = index_to_data.get(i, {})
+        rows.append(
+            dbc.Row([
+                dbc.Col([
+                    dbc.Label("Name"),
+                    dbc.Input(
+                        id={"type": "grant-input", "name": "person-name", "index": i},
+                        type='text',
+                        placeholder="Enter full name",
+                        className="mb-3",
+                        value=person_data.get('name', "")
+                    ),
+                ], width=6),
+
+                dbc.Col([
+                    dbc.Label("Position"),
+                    dbc.Select(
+                        id={"type": "grant-input", "name": "person-position", "index": i},
+                        options=[
+                            {"label": "PI", "value": "PI"},
+                            {"label": "Co-PI", "value": "Co-PI"},
+                            {"label": "Professional Staff", "value": "UI Professional Staff"},
+                            {"label": "Postdoc", "value": "Postdoc"},
+                            {"label": "GRA", "value": "GRA"},
+                            {"label": "Undergrad", "value": "Undergrad"},
+                            {"label": "Temp Help", "value": "Temp Help"},
+                        ],
+                        placeholder="Select role",
+                        className="mb-3",
+                        value=person_data.get('position', "")
+                    ),
+                ], width=6),
+            ], className="mb-2")
+        )
+    return rows
+
+
+
+
+
+# callback to show the buttons to remove for when we add a person
+@callback(
+    Output({"type": "grant-input", "name": "remove-person-btn"}, "style"),
+    Input({"type": "grant-input", "name": "add-person-btn"}, "n_clicks"),
+    Input('personnel-store', 'data'),
+)
+def show_remove_button(add_clicks, current_data):
+    if add_clicks and len(current_data) > 1:
+        return {"text-align": "center" , "display" : "block"}
+    else:
+        return {"text-align": "center" , "display" : "none"}
+    
+
+
+# Dynamically create inputs for years based on selected duration
+@callback(
+    Output('estimated-hours-section', 'children'),
+    Input({'type': 'grant-input', 'name': 'person-name', 'index': ALL}, 'value'),
+    Input({'type': 'grant-input', 'name': 'person-position', 'index': ALL}, 'value'),
+    Input({'type': 'grant-input', 'name': 'total-duration'}, 'value'),  
+    State('personnel-store', 'data'),
+    
+)
+def render_estimated_hours_rows(names, positions, duration, indexes ):
+    duration = int(duration) if duration else 1
+    duration = duration or 1
+    index_to_data = {
+        i: {'name': n, 'position': p}
+        for i, n, p in zip(indexes, names, positions)
+        if n and p  # show row only if at least one field is entered
+    }
+
+
+    rows = []
+    for i in indexes:
+        person = index_to_data.get(i)
+        if not person:
+            continue  # skip rows with empty name or position
+
+        # inner row for year inputs
+        year_inputs = [
+            dbc.Col(
+                dbc.Input(
+                    id={"type": "hours-input", "year": y, "index": i},
+                    type='number',
+                    placeholder=f"Y{y}",
+                    className="mb-2"
+                ), width=12 // duration  
+            )
+            for y in range(1, duration + 1)
+        ]
+
+        rows.append(
+            dbc.Row([
+                dbc.Col(html.P(person['name'], className="mb-0"), width=3),
+                dbc.Col(html.P(person['position'], className="mb-0"), width=2),
+                dbc.Col(dbc.Row(year_inputs, className="g-1"), width=5), 
+                dbc.Col(
+                    dbc.Checkbox(
+                        id={"type": "same-each-year", "index": i},
+                        # className="form-check-input",
+                    ),
+                    width=2
+                ),
+            ], className="align-items-center mb-2")
+        )
+
+    return rows
+
+# callback for syncing values when “Same for Each Year” is checked
+@callback(
+    Output({'type': 'hours-input', 'year': ALL, 'index': MATCH}, 'value'),
+    Input({'type': 'same-each-year', 'index': MATCH}, 'value'),
+    State({'type': 'hours-input', 'year': ALL, 'index': MATCH}, 'value'),
+    prevent_initial_call=True
+)
+def copy_hours_if_same_for_all(same_for_each, year_values):
+    if same_for_each:
+        first_year_value = year_values[0]
+        return [first_year_value] * len(year_values)
+    return year_values
