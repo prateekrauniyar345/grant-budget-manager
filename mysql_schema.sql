@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS grants (
     title VARCHAR(255) NOT NULL,  -- Grant title
     description TEXT,  -- Detailed description of the grant
     funding_agency VARCHAR(255) NOT NULL,  -- Name of the funding agency (e.g., NSF, NIH)
-    total_funding DECIMAL(15,2) NOT NULL,  -- Total funding amount
+    duration = db.Column(Integer, nullable=False) -- Duration of the grant in years
     start_date DATE NOT NULL,  -- Start date of the grant
     end_date DATE NOT NULL,  -- End date of the grant
     status ENUM('Draft', 'Submitted', 'Approved', 'Rejected', 'Completed') DEFAULT 'Draft',  -- Grant status
@@ -170,3 +170,51 @@ CREATE TABLE IF NOT EXISTS grants (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+
+
+
+-- Recreate grants_personnel table with NULLs allowed and default values
+CREATE TABLE grants_personnel (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    grant_id INT NOT NULL,
+    name VARCHAR(100) DEFAULT NULL,
+    position VARCHAR(100) DEFAULT NULL,
+    year INT DEFAULT NULL,
+    estimated_hours DECIMAL(10, 2) DEFAULT NULL,
+    FOREIGN KEY (grant_id) REFERENCES grants(id) ON DELETE CASCADE
+);
+
+-- Recreate grants_travel table with NULLs allowed and default values
+-- Drop the existing grants_travel table if needed
+-- DROP TABLE IF EXISTS grants_travel;
+
+-- Recreate with the amount column
+CREATE TABLE grants_travel (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    grant_id INT NOT NULL,
+    travel_type ENUM('Domestic', 'International') DEFAULT NULL,
+    name VARCHAR(255) DEFAULT NULL,
+    description TEXT DEFAULT NULL,
+    year INT DEFAULT NULL,
+    amount DECIMAL(10, 2) DEFAULT NULL,
+    FOREIGN KEY (grant_id) REFERENCES grants(id) ON DELETE CASCADE
+);
+
+-- Recreate grants_materials table with NULLs allowed and default values
+CREATE TABLE grants_materials (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    grant_id INT NOT NULL,
+    category_id INT DEFAULT NULL,
+    subcategory_id INT DEFAULT NULL,
+    cost DECIMAL(10, 2) DEFAULT NULL,
+    description TEXT DEFAULT NULL,
+    year INT DEFAULT NULL,
+    
+    FOREIGN KEY (grant_id) REFERENCES grants(id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES expense_categories(id),
+    FOREIGN KEY (subcategory_id) REFERENCES expense_subcategories(id)
+);
+
+
+/* category_id */

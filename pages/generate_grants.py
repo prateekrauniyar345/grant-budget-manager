@@ -2,12 +2,16 @@ import dash
 from dash import html, dcc, Input, Output, State, callback
 import dash_bootstrap_components as dbc
 from datetime import date
-from models import Grant, User
+from models import User
 from db_utils import get_db_session
 from flask_login import current_user
 from dateutil.relativedelta import relativedelta
 from dash import MATCH, ALL, ctx
 from dash.exceptions import PreventUpdate
+from models import Grant, GrantPersonnel, GrantTravel, GrantMaterial, ExpenseSubcategory
+from db_utils import get_db_session
+from datetime import date
+
 
 # Register the page
 dash.register_page(__name__, path='/generate-grants')
@@ -376,55 +380,142 @@ def layout():
         ),
     ])
 
+
+
 # Callback to handle form submission
+from sqlalchemy.exc import SQLAlchemyError
+
 @callback(
     [Output('success-toast', 'is_open'), Output('failure-toast', 'is_open')],
     Input('submit-btn', 'n_clicks'),
     [
-        State('grant-title', 'value'),
-        State('funding-agency', 'value'),
-        State('total-funding', 'value'),
-        State('grant-status', 'value'),
-        State('start-date', 'date'),
-        State('end-date', 'date'),
-        State('grant-description', 'value')
+        State({'type': 'grant-input', 'name': 'grant-title'}, 'value'),
+        State({'type': 'grant-input', 'name': 'funding-agency'}, 'value'),
+        State({'type': 'grant-input', 'name': 'total-duration'}, 'value'),
+        State({'type': 'grant-input', 'name': 'grant-status'}, 'value'),
+        State({'type': 'grant-input', 'name': 'start-date'}, 'date'),
+        State({'type': 'grant-input', 'name': 'end-date'}, 'date'),
+        State({'type': 'grant-input', 'name': 'grant-description'}, 'value'),
+        State('personnel-values-store', 'data'),
+        State('hours-store', 'data'),
+        State('domestic-travel-values-store', 'data'),
+        State('international-travel-values-store', 'data'),
+        State('materials-values-store', 'data')
     ],
     prevent_initial_call=True
 )
-def submit_grant(n_clicks, title, funding_agency, total_funding, status, start_date, end_date, description):
-    if not all([title, funding_agency, total_funding, status, start_date, end_date]):
-        return False, True  # Show failure toast
+def submit_grant(n_clicks, title, funding_agency, duration, status, start_date, end_date, description,
+                 personnel_data, hours_data,
+                 domestic_travel, international_travel,
+                 materials_data):
+    
+    if not all([title, funding_agency, duration, status, start_date, end_date]):
+        return False, True
 
-    # Get the database session
     session = get_db_session()
+
+    # Utility to normalize empty strings or None
+    def normalize_empty(val):
+        return val if val not in ("", None) else None
 
     try:
         if not current_user.is_authenticated:
-            return False, True  # Show failure toast
+            return False, True
 
-        new_grant = Grant(
-            user_id=current_user.id,
-            title=title,
-            description=description,
-            funding_agency=funding_agency,
-            total_funding=total_funding,
-            start_date=start_date,
-            end_date=end_date,
-            status=status
-        )
+        with session.begin():  # This begins a transaction. Will rollback on exception automatically.
 
-        session.add(new_grant)
-        session.commit()
+            # --- Main Grant ---
+            new_grant = Grant(
+                user_id=current_user.id,
+                title=title,
+                description=normalize_empty(description),
+                funding_agency=funding_agency,
+                duration=duration,
+                start_date=start_date,
+                end_date=end_date,
+                status=status
+            )
+            session.add(new_grant)
+            session.flush()  # Ensure new_grant.id is populated
 
-        return True, False  # Show success toast
+            grant_id = new_grant.id
 
-    except Exception as err:
-        session.rollback()
-        print(f"Error occurred while submitting grant: {err}")
-        return False, True  # Show failure toast
+            # --- Personnel ---
+            if personnel_data and hours_data:
+                start_year = date.fromisoformat(start_date).year  # actual year like 2025
+                for person in personnel_data:
+                    index = person.get('index')
+                    name = person.get('name')
+                    position = person.get('position')
+                    duration = int(duration)
+                    for offset in range(duration):  # offset: 0, 1, 2, ..., duration-1
+                        actual_year = start_year + offset
+                        key = f"{index}-{offset + 1}"  # still match UI key: 1, 2, 3...
+                        hours = normalize_empty(hours_data.get(key))
+
+                        if hours is not None:
+                            session.add(GrantPersonnel(
+                                grant_id=grant_id,
+                                name=normalize_empty(name),
+                                position=normalize_empty(position),
+                                year=actual_year,  #  Store as real year like 2025
+                                estimated_hours=hours
+                            ))
+
+            # --- Domestic Travel ---
+            if domestic_travel:
+                for val in domestic_travel.values():
+                    travel_year = normalize_empty(val.get('year'))  # Get actual calendar year
+                    if val.get('name') or travel_year:
+                        session.add(GrantTravel(
+                            grant_id=grant_id,
+                            travel_type='Domestic',
+                            name=normalize_empty(val.get('name')),
+                            description=normalize_empty(val.get('desc')),
+                            amount=normalize_empty(val.get('amount')),
+                            year=travel_year  #  Actual year like 2025
+                        ))
+
+            # --- International Travel ---
+            if international_travel:
+                for val in international_travel.values():
+                    travel_year = normalize_empty(val.get('year'))  # Get actual calendar year
+                    if val.get('name') or travel_year:
+                        session.add(GrantTravel(
+                            grant_id=grant_id,
+                            travel_type='International',
+                            name=normalize_empty(val.get('name')),
+                            description=normalize_empty(val.get('desc')),
+                            amount=normalize_empty(val.get('amount')),
+                            year=travel_year  # Actual year like 2026
+                        ))
+
+
+            # --- Materials ---
+            if materials_data:
+                for val in materials_data.values():
+                    cost = normalize_empty(val.get('cost'))
+                    year = normalize_empty(val.get('year'))
+                    if cost is not None or year is not None:
+                        subcat = session.query(ExpenseSubcategory).filter_by(name=val.get('name')).first()
+                        session.add(GrantMaterial(
+                            grant_id=grant_id,
+                            category_id=subcat.category_id,
+                            subcategory_id=subcat.id if subcat else None,
+                            cost=cost,
+                            description=normalize_empty(val.get('desc')),
+                            year=year
+                        ))
+
+        return True, False  # Success toast
+
+    except SQLAlchemyError as err:
+        print("Submission Error:", err)
+        return False, True  # Failure toast
 
     finally:
         session.close()
+
 
 
 
@@ -753,17 +844,20 @@ def toggle_remove_international_button(data):
     Output('domestic-travel-values-store', 'data', allow_duplicate=True),
     Input({'type': 'travel-name', 'scope': 'domestic', 'index': ALL}, 'value'),
     Input({'type': 'travel-desc', 'scope': 'domestic', 'index': ALL}, 'value'),
+    Input({'type': 'travel-amount', 'scope': 'domestic', 'index': ALL}, 'value'),
     Input({'type': 'travel-year', 'scope': 'domestic', 'index': ALL}, 'value'),
     State({'type': 'travel-name', 'scope': 'domestic', 'index': ALL}, 'id'),
     prevent_initial_call=True
 )
-def update_domestic_travel_values(names, descs, years, ids):
+def update_domestic_travel_values(names, descs, amount, years, ids):
     data = {}
-    for name, desc, year, id_obj in zip(names, descs, years, ids):
+    for name, desc,amount,  year, id_obj in zip(names, descs, amount, years, ids):
         index = id_obj['index']
+        print(f"Domestic Travel Index {index} → Year: {year}")
         data[str(index)] = {
             'name': name,
             'desc': desc,
+            'amount': amount,
             'year': year
         }
     return data
@@ -774,17 +868,19 @@ def update_domestic_travel_values(names, descs, years, ids):
     Output('international-travel-values-store', 'data', allow_duplicate=True),
     Input({'type': 'travel-name', 'scope': 'international', 'index': ALL}, 'value'),
     Input({'type': 'travel-desc', 'scope': 'international', 'index': ALL}, 'value'),
+    Input({'type': 'travel-amount', 'scope': 'international', 'index': ALL}, 'value'),
     Input({'type': 'travel-year', 'scope': 'international', 'index': ALL}, 'value'),
     State({'type': 'travel-name', 'scope': 'international', 'index': ALL}, 'id'),
     prevent_initial_call=True
 )
-def update_international_travel_values(names, descs, years, ids):
+def update_international_travel_values(names, descs, amount, years, ids):
     data = {}
-    for name, desc, year, id_obj in zip(names, descs, years, ids):
+    for name, desc, amount, year, id_obj in zip(names, descs,amount,  years, ids):
         index = id_obj['index']
         data[str(index)] = {
             'name': name,
             'desc': desc,
+            'amount': amount,
             'year': year
         }
     return data
@@ -828,13 +924,19 @@ def render_domestic_travels(indexes, stored_data, duration, start_date):
                     placeholder="Description",
                     value=val.get('desc', ""),
                     style={"height": "38px"}
-                ), width=6),
+                ), width=5),
+                dbc.Col(dbc.Input(
+                    id={"type": "travel-amount", "scope": "domestic", "index": i},
+                    type="number",
+                    placeholder="Amount",
+                    value=val.get('amount', ""),
+                ), width=2),
                 dbc.Col(dbc.Select(
                     id={"type": "travel-year", "scope": "domestic", "index": i},
                     options=year_options,
                     value=val.get('year', None),
                     placeholder="Select Year"
-                ), width=3),
+                ), width=2),
             ], className="mb-3")
         )
     return rows
@@ -878,13 +980,19 @@ def render_international_travels(indexes, stored_data, duration, start_date):
                     placeholder="Description",
                     value=val.get('desc', ""),
                     style={"height": "38px"}
-                ), width=6),
+                ), width=5),
+                dbc.Col(dbc.Input(
+                    id={"type": "travel-amount", "scope": "international", "index": i},
+                    type="number",
+                    placeholder="Amount",
+                    value=val.get('amount', ""),
+                ), width=2),
                 dbc.Col(dbc.Select(
                     id={"type": "travel-year", "scope": "international", "index": i},
                     options=year_options,
                     value=val.get('year', None),
                     placeholder="Select Year"
-                ), width=3),
+                ), width=2),
             ], className="mb-3")
         )
     return rows
