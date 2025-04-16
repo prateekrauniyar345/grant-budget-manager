@@ -7,6 +7,7 @@ from db_utils import get_db_session
 from flask_login import current_user
 from dateutil.relativedelta import relativedelta
 from dash import MATCH, ALL, ctx
+from dash.exceptions import PreventUpdate
 
 # Register the page
 dash.register_page(__name__, path='/generate-grants')
@@ -33,6 +34,21 @@ failure_toast = dbc.Toast(
     className="mb-3",
     style={"position": "fixed", "top": 66, "right": 10, "width": 350},
 )
+
+# materisl options
+material_options = [
+    {"label": "Equipment >5K", "value": "Equipment >5K"},
+    {"label": "Materials and Supplies", "value": "Materials and Supplies"},
+    {"label": "Equipment <5K", "value": "Equipment <5K"},
+    {"label": "Publication Costs", "value": "Publication Costs"},
+    {"label": "Computer Services", "value": "Computer Services"},
+    {"label": "Software", "value": "Software"},
+    {"label": "Facility Usage Fees", "value": "Facility Usage Fees"},
+    {"label": "Conference Registration", "value": "Conference Registration"},
+    {"label": "Other", "value": "Other"},
+    {"label": "Grad Student Tuition & Health Insurance", "value": "Grad Student Tuition & Health Insurance"},
+]
+
 
 # Define Container
 container = html.Div(
@@ -152,14 +168,14 @@ container = html.Div(
                     children=[
                         dbc.Button(
                             "Add Person",
-                            id={"type": "grant-input", "name": "add-person-btn"},
+                            id="add-person-btn",
                             color="primary",
                             className="mb-3 w-40",
                             style={"text-align": "center"},
                         ),
                         dbc.Button(
                             "Remove Person",
-                            id={"type": "grant-input", "name": "remove-person-btn"},
+                            id="remove-person-btn",
                             color="danger",
                             className="mb-3 w-40",
                             style={"text-align": "center" , "display" : "none"},
@@ -171,7 +187,7 @@ container = html.Div(
             html.Br(),
 
             # Expense Section
-            html.Div(html.P("Expense Information", className="fw-bold")),
+            html.Div(html.P("Personeel Expense Information", className="fw-bold")),
             html.Hr(),
             dbc.Row([
                 dbc.Col([
@@ -188,39 +204,93 @@ container = html.Div(
                     html.Div(id='estimated-hours-section')
                 ])
             ]),
+            html.Br(),
 
-            # dbc.Row([
-            #     dbc.Col([
-            #         dbc.Label("Travel - Domestic"),
-            #         dbc.Input(id='travel-domestic', type='number', placeholder="Enter amount", className="mb-3"),
-            #     ]),
-            #     dbc.Col([
-            #         dbc.Label("Travel - International"),
-            #         dbc.Input(id='travel-international', type='number', placeholder="Enter amount", className="mb-3"),
-            #     ]),
-            # ]),
-            # dbc.Row([
-            #     dbc.Col([
-            #         dbc.Label("Materials and Supplies"),
-            #         dbc.Input(id='materials-supplies', type='number', placeholder="Enter amount", className="mb-3"),
-            #     ]),
-            #     dbc.Col([
-            #         dbc.Label("Publication Costs"),
-            #         dbc.Input(id='publication-costs', type='number', placeholder="Enter amount", className="mb-3"),
-            #     ]),
-            # ]),
-            # dbc.Row([
-            #     dbc.Col([
-            #         dbc.Label("Grad Student Tuition & Health Insurance"),
-            #         dbc.Input(id='tuition-health', type='number', placeholder="Enter amount", className="mb-3"),
-            #     ]),
-            #     dbc.Col([
-            #         dbc.Label("Other Costs"),
-            #         dbc.Textarea(id='other-costs', placeholder="Describe other costs", className="mb-3", style={"height": "100px"}),
-            #     ]),
-            # ]),
+            # travel expenses
+            html.Div(html.P("Travel Expenses Information", className="fw-bold")),
+            html.Hr(),
+            dbc.Row(children=[
+                html.Div(html.P("Domestic Travel", className="")),
+                html.Div(id='domestic-travel-section'),
+                html.Div(
+                    children=[
+                        dbc.Button(
+                            "Add Domestic Travel",
+                            id="add-domestic-travel-btn",
+                            color="primary",
+                            className="mb-3 w-40",
+                            style={"text-align": "center"},
+                        ),
+                        dbc.Button(
+                            "Remove Domestic Travel",
+                            id="remove-domestic-travel-btn",
+                            color="danger",
+                            className="mb-3 w-40",
+                            style={"text-align": "center" , "display" : "none"},
+                        ),
+                    ], 
+                    className="d-flex justify-content-center gap-3",
+                ),
 
+                html.Br(),
+
+                html.Div(html.P("International Travel", className="")),
+                html.Div(id='international-travel-section'),
+                html.Div(
+                    children=[
+                        dbc.Button(
+                            "Add International Travel",
+                            id="add-international-travel-btn",
+                            color="primary",
+                            className="mb-3 w-40",
+                            style={"text-align": "center"},
+                        ),
+                        dbc.Button(
+                            "Remove International Travel",
+                            id="remove-international-travel-btn",
+                            color="danger",
+                            className="mb-3 w-40",
+                            style={"text-align": "center" , "display" : "none"},
+                        ),
+                    ], 
+                    className="d-flex justify-content-center gap-3",
+                ),
+               
+            ]), 
+            html.Br(),
+            # Materials and Supplies
+            html.Div(html.P("Materials and Supplies", className="fw-bold")),
+            html.Hr(),
+            dbc.Row(children=[
+                html.Div(id='materials-supplies-section'),
+                html.Div(
+                    children=[
+                        dbc.Button(
+                            "Add Material/Supply",
+                            id="add-material-btn",
+                            color="primary",
+                            className="mb-3 w-40",
+                            style={"text-align": "center"},
+                        ),
+                        dbc.Button(
+                            "Remove Material/Supply",
+                            id="remove-material-btn",
+                            color="danger",
+                            className="mb-3 w-40",
+                            style={"text-align": "center", "display": "none"},
+                        ),
+                    ],
+                    className="d-flex justify-content-center gap-3",
+                ),
+            ]),
+
+            
+
+        
             # action buttons
+            html.Br(),
+            html.Br(),
+            html.Hr(),
             dbc.Row(
                 [
                     dbc.Col(
@@ -249,7 +319,16 @@ container = html.Div(
                                         style={"text-align": "center"},
                                     ),
                                 ],
-                                style={"display" : "flex", "text-align": "center", "margin-top": "20px", "gap" : "20px"},
+                                # style={"display" : "flex", "text-align": "center", "margin-top": "20px", "gap" : "20px"},
+                                style={
+                                        "display": "flex",
+                                        "justifyContent": "center",
+                                        "gap": "20px",
+                                        "paddingTop": "5px",
+                                        "paddingBottom": "50px",
+                                        "marginTop": "30px",
+                                        "marginBottom": "30px",
+                                    },
                             )
                         ],
                         className="d-flex justify-content-center",
@@ -268,8 +347,20 @@ container = html.Div(
 def layout():
     
     return html.Div([
+        # dcc stores
         dcc.Store(id='personnel-store', data=[0]),
         dcc.Store(id='personnel-values-store', data=None),
+        dcc.Store(id='domestic-travel-store', data=[0]),
+        dcc.Store(id='international-travel-store', data=[0]),
+        dcc.Store(id='hours-store', data={}),
+        dcc.Store(id='domestic-travel-values-store', data={}),
+        dcc.Store(id='international-travel-values-store', data={}),
+        dcc.Store(id='materials-store', data=[0]),
+        dcc.Store(id='materials-values-store', data={}),
+
+
+
+
         html.H3('Generate Grants', className="text-center mt-4 mb-4", style={"color": "#2c3e50"}),
         dcc.Loading(
             type='circle',
@@ -351,38 +442,49 @@ def update_end_date(start_date, duration):
     return None
 
 
+
+
+
+
+############################################
+# Personeel Expenses Callbacks
+############################################
 # Callback to modify list of personnel row indices
 @callback(
     Output('personnel-store', 'data'),
     Output('personnel-values-store', 'data'),
-    Input({'type': 'grant-input', 'name': 'add-person-btn'}, 'n_clicks'),
-    Input({'type': 'grant-input', 'name': 'remove-person-btn'}, 'n_clicks'),
+    Input('add-person-btn', 'n_clicks'),
+    Input('remove-person-btn', 'n_clicks'),
     State('personnel-store', 'data'),
     State({'type': 'grant-input', 'name': 'person-name', 'index': ALL}, 'value'),
     State({'type': 'grant-input', 'name': 'person-position', 'index': ALL}, 'value'),
+    State({'type': 'same-each-year', 'index': ALL}, 'value'),
     prevent_initial_call=True
 )
-def update_person_list(add_clicks, remove_clicks, current_data, names, positions):
-    # Preserve existing data
-    current_personnel = [
-        {'index': i, 'name': n, 'position': p}
-        for i, n, p in zip(current_data, names, positions)
-    ]
-    
+def update_person_list(add_clicks, remove_clicks, current_data, names, positions, checkboxes):
     triggered = ctx.triggered_id
-    if triggered and triggered['name'] == 'add-person-btn':
-        new_index = max(current_data) + 1 if current_data else 0
-        new_data = current_data + [new_index]
-    elif triggered and triggered['name'] == 'remove-person-btn':
-        if len(current_data) > 1:
-            new_data = current_data[:-1]
-            current_personnel = current_personnel[:-1]  # Drop last row's values
-        else:
-            new_data = current_data
-    else:
-        new_data = current_data
+    new_data = current_data.copy()
 
-    return new_data, current_personnel
+    if triggered == 'add-person-btn':
+        new_index = max(current_data) + 1 if current_data else 0
+        new_data.append(new_index)
+    elif triggered == 'remove-person-btn' and len(current_data) > 1:
+        new_data = current_data[:-1]  # Always remove last index
+
+    # Only store values for rows that still exist after the update
+    filtered_personnel = []
+    for i, n, p, c in zip(current_data, names, positions, checkboxes):
+        if i in new_data:
+            filtered_personnel.append({
+                'index': i,
+                'name': n,
+                'position': p,
+                'checkbox': c
+            })
+
+    return new_data, filtered_personnel
+
+
 
 
 # Callback to render rows based on indices in personnel-store
@@ -434,13 +536,10 @@ def render_personnel_rows(indexes, stored_data):
     return rows
 
 
-
-
-
 # callback to show the buttons to remove for when we add a person
 @callback(
-    Output({"type": "grant-input", "name": "remove-person-btn"}, "style"),
-    Input({"type": "grant-input", "name": "add-person-btn"}, "n_clicks"),
+    Output("remove-person-btn", "style"),
+    Input("add-person-btn", "n_clicks"),
     Input('personnel-store', 'data'),
 )
 def show_remove_button(add_clicks, current_data):
@@ -451,53 +550,74 @@ def show_remove_button(add_clicks, current_data):
     
 
 
+############################################
+# Estimated Working hours Callbacks
+############################################
+
+# estimated hours section
 # Dynamically create inputs for years based on selected duration
 @callback(
     Output('estimated-hours-section', 'children'),
     Input({'type': 'grant-input', 'name': 'person-name', 'index': ALL}, 'value'),
     Input({'type': 'grant-input', 'name': 'person-position', 'index': ALL}, 'value'),
-    Input({'type': 'grant-input', 'name': 'total-duration'}, 'value'),  
+    Input({'type': 'grant-input', 'name': 'total-duration'}, 'value'),
     State('personnel-store', 'data'),
-    
+    State('personnel-values-store', 'data'),
+    State('hours-store', 'data'),
+    State({'type': 'grant-input', 'name': 'start-date'}, 'date'),  # <-- Add this
 )
-def render_estimated_hours_rows(names, positions, duration, indexes ):
+def render_estimated_hours_rows(names, positions, duration, indexes, personnel_data, hours_store, start_date):
     duration = int(duration) if duration else 1
-    duration = duration or 1
     index_to_data = {
         i: {'name': n, 'position': p}
         for i, n, p in zip(indexes, names, positions)
-        if n and p  # show row only if at least one field is entered
+        if n and p
     }
 
+    # Prepare year labels using start date
+    year_labels = []
+    try:
+        start_year = date.fromisoformat(start_date).year
+        year_labels = [str(start_year + y) for y in range(duration)]
+    except:
+        year_labels = [f"Year {y+1}" for y in range(duration)]
 
+    hours_store = hours_store or {}
     rows = []
+
     for i in indexes:
         person = index_to_data.get(i)
         if not person:
-            continue  # skip rows with empty name or position
+            continue
 
-        # inner row for year inputs
         year_inputs = [
             dbc.Col(
                 dbc.Input(
-                    id={"type": "hours-input", "year": y, "index": i},
+                    id={"type": "hours-input", "year": y + 1, "index": i},
                     type='number',
-                    placeholder=f"Y{y}",
+                    placeholder=year_labels[y],
+                    value=hours_store.get(f"{i}-{y+1}", ""),
                     className="mb-2"
-                ), width=12 // duration  
+                ),
+                width=12 // duration
             )
-            for y in range(1, duration + 1)
+            for y in range(duration)
         ]
+
+        checkbox_checked = False
+        for item in personnel_data or []:
+            if item['index'] == i:
+                checkbox_checked = item.get('checkbox', False)
 
         rows.append(
             dbc.Row([
                 dbc.Col(html.P(person['name'], className="mb-0"), width=3),
                 dbc.Col(html.P(person['position'], className="mb-0"), width=2),
-                dbc.Col(dbc.Row(year_inputs, className="g-1"), width=5), 
+                dbc.Col(dbc.Row(year_inputs, className="g-1"), width=5),
                 dbc.Col(
                     dbc.Checkbox(
                         id={"type": "same-each-year", "index": i},
-                        # className="form-check-input",
+                        value=checkbox_checked,
                     ),
                     width=2
                 ),
@@ -505,6 +625,43 @@ def render_estimated_hours_rows(names, positions, duration, indexes ):
         )
 
     return rows
+
+
+@callback(
+    Output('personnel-values-store', 'data', allow_duplicate=True),
+    Input({'type': 'same-each-year', 'index': ALL}, 'value'),
+    State({'type': 'grant-input', 'name': 'person-name', 'index': ALL}, 'value'),
+    State({'type': 'grant-input', 'name': 'person-position', 'index': ALL}, 'value'),
+    State('personnel-store', 'data'),
+    prevent_initial_call=True
+)
+def update_checkbox_state(checkbox_values, names, positions, indexes):
+    data = []
+    for i, name, position, checkbox in zip(indexes, names, positions, checkbox_values):
+        data.append({
+            'index': i,
+            'name': name,
+            'position': position,
+            'checkbox': checkbox
+        })
+    return data
+
+
+
+# Create a callback to save values to hours-store:
+@callback(
+    Output('hours-store', 'data', allow_duplicate=True),
+    Input({'type': 'hours-input', 'year': ALL, 'index': ALL}, 'value'),
+    State({'type': 'hours-input', 'year': ALL, 'index': ALL}, 'id'),
+    prevent_initial_call=True
+)
+def save_hour_values(values, ids):
+    data = {}
+    for val, id_obj in zip(values, ids):
+        key = f"{id_obj['index']}-{id_obj['year']}"
+        data[key] = val
+    return data
+
 
 # callback for syncing values when “Same for Each Year” is checked
 @callback(
@@ -518,3 +675,338 @@ def copy_hours_if_same_for_all(same_for_each, year_values):
         first_year_value = year_values[0]
         return [first_year_value] * len(year_values)
     return year_values
+
+
+
+
+
+
+
+
+
+
+############################################
+# Travel Expenses Callbacks
+############################################
+
+# callback to dynamically create inputs for travel expenses: both for domestic and international
+@callback(
+    Output('domestic-travel-store', 'data'),
+    Input('add-domestic-travel-btn', 'n_clicks'),
+    Input('remove-domestic-travel-btn', 'n_clicks'),
+    State('domestic-travel-store', 'data'),
+    prevent_initial_call=True
+)
+def update_domestic_travel(add_clicks, remove_clicks, data):
+    triggered = ctx.triggered_id
+    data = data or [0]
+
+    if triggered == 'add-domestic-travel-btn':
+        new_index = max(data) + 1
+        return data + [new_index]
+    elif triggered == 'remove-domestic-travel-btn' and len(data) > 1:
+        return data[:-1]
+    return data
+
+# Show/Hide Remove Button for Domestic
+@callback(
+    Output('remove-domestic-travel-btn', 'style'),
+    Input('domestic-travel-store', 'data')
+)
+def toggle_remove_domestic_button(data):
+    return {"text-align": "center", "display": "block"} if len(data) > 1 else {"text-align": "center", "display": "none"}
+
+#  International Travel Row Manager
+@callback(
+    Output('international-travel-store', 'data'),
+    Input('add-international-travel-btn', 'n_clicks'),
+    Input('remove-international-travel-btn', 'n_clicks'),
+    State('international-travel-store', 'data'),
+    prevent_initial_call=True
+)
+def update_international_travel(add_clicks, remove_clicks, data):
+    triggered = ctx.triggered_id
+    data = data or [0]
+
+    if triggered == 'add-international-travel-btn':
+        new_index = max(data) + 1
+        return data + [new_index]
+    elif triggered == 'remove-international-travel-btn' and len(data) > 1:
+        return data[:-1]
+    return data
+
+# Show/Hide Remove Button for International
+@callback(
+    Output('remove-international-travel-btn', 'style'),
+    Input('international-travel-store', 'data')
+)
+def toggle_remove_international_button(data):
+    return {"text-align": "center", "display": "block"} if len(data) > 1 else {"text-align": "center", "display": "none"}
+
+
+# Update domestic travel values store
+@callback(
+    Output('domestic-travel-values-store', 'data', allow_duplicate=True),
+    Input({'type': 'travel-name', 'scope': 'domestic', 'index': ALL}, 'value'),
+    Input({'type': 'travel-desc', 'scope': 'domestic', 'index': ALL}, 'value'),
+    Input({'type': 'travel-year', 'scope': 'domestic', 'index': ALL}, 'value'),
+    State({'type': 'travel-name', 'scope': 'domestic', 'index': ALL}, 'id'),
+    prevent_initial_call=True
+)
+def update_domestic_travel_values(names, descs, years, ids):
+    data = {}
+    for name, desc, year, id_obj in zip(names, descs, years, ids):
+        index = id_obj['index']
+        data[str(index)] = {
+            'name': name,
+            'desc': desc,
+            'year': year
+        }
+    return data
+
+
+# Update international travel values store
+@callback(
+    Output('international-travel-values-store', 'data', allow_duplicate=True),
+    Input({'type': 'travel-name', 'scope': 'international', 'index': ALL}, 'value'),
+    Input({'type': 'travel-desc', 'scope': 'international', 'index': ALL}, 'value'),
+    Input({'type': 'travel-year', 'scope': 'international', 'index': ALL}, 'value'),
+    State({'type': 'travel-name', 'scope': 'international', 'index': ALL}, 'id'),
+    prevent_initial_call=True
+)
+def update_international_travel_values(names, descs, years, ids):
+    data = {}
+    for name, desc, year, id_obj in zip(names, descs, years, ids):
+        index = id_obj['index']
+        data[str(index)] = {
+            'name': name,
+            'desc': desc,
+            'year': year
+        }
+    return data
+
+
+# Render domestic travel rows with persisted values
+@callback(
+    Output('domestic-travel-section', 'children'),
+    Input('domestic-travel-store', 'data'),
+    State('domestic-travel-values-store', 'data'),
+    Input({'type': 'grant-input', 'name': 'total-duration'}, 'value'),
+    Input({'type': 'grant-input', 'name': 'start-date'}, 'date'),
+)
+def render_domestic_travels(indexes, stored_data, duration, start_date):
+    duration = int(duration) if duration else 1
+    stored_data = stored_data or {}
+    rows = []
+
+    try:
+        start_date_obj = date.fromisoformat(start_date)
+    except:
+        raise PreventUpdate
+
+    year_options = [
+        {"label": f"Year {i + 1} ({(start_date_obj + relativedelta(years=i)).year})",
+         "value": (start_date_obj + relativedelta(years=i)).year}
+        for i in range(duration)
+    ]
+
+    for i in indexes:
+        val = stored_data.get(str(i), {})
+        rows.append(
+            dbc.Row([
+                dbc.Col(dbc.Input(
+                    id={"type": "travel-name", "scope": "domestic", "index": i},
+                    placeholder="Travel Name",
+                    value=val.get('name', "")
+                ), width=3),
+                dbc.Col(dbc.Textarea(
+                    id={"type": "travel-desc", "scope": "domestic", "index": i},
+                    placeholder="Description",
+                    value=val.get('desc', ""),
+                    style={"height": "38px"}
+                ), width=6),
+                dbc.Col(dbc.Select(
+                    id={"type": "travel-year", "scope": "domestic", "index": i},
+                    options=year_options,
+                    value=val.get('year', None),
+                    placeholder="Select Year"
+                ), width=3),
+            ], className="mb-3")
+        )
+    return rows
+
+
+# Render international travel rows with persisted values
+@callback(
+    Output('international-travel-section', 'children'),
+    Input('international-travel-store', 'data'),
+    State('international-travel-values-store', 'data'),
+    Input({'type': 'grant-input', 'name': 'total-duration'}, 'value'),
+    Input({'type': 'grant-input', 'name': 'start-date'}, 'date'),
+)
+def render_international_travels(indexes, stored_data, duration, start_date):
+    duration = int(duration) if duration else 1
+    stored_data = stored_data or {}
+    rows = []
+
+    try:
+        start_date_obj = date.fromisoformat(start_date)
+    except:
+        raise PreventUpdate
+
+    year_options = [
+        {"label": f"Year {i + 1} ({(start_date_obj + relativedelta(years=i)).year})",
+         "value": (start_date_obj + relativedelta(years=i)).year}
+        for i in range(duration)
+    ]
+
+    for i in indexes:
+        val = stored_data.get(str(i), {})
+        rows.append(
+            dbc.Row([
+                dbc.Col(dbc.Input(
+                    id={"type": "travel-name", "scope": "international", "index": i},
+                    placeholder="Travel Name",
+                    value=val.get('name', "")
+                ), width=3),
+                dbc.Col(dbc.Textarea(
+                    id={"type": "travel-desc", "scope": "international", "index": i},
+                    placeholder="Description",
+                    value=val.get('desc', ""),
+                    style={"height": "38px"}
+                ), width=6),
+                dbc.Col(dbc.Select(
+                    id={"type": "travel-year", "scope": "international", "index": i},
+                    options=year_options,
+                    value=val.get('year', None),
+                    placeholder="Select Year"
+                ), width=3),
+            ], className="mb-3")
+        )
+    return rows
+
+
+
+
+
+############################################
+# Material and Supplies Callbacks
+############################################
+@callback(
+    Output('materials-store', 'data'),
+    Input('add-material-btn', 'n_clicks'),
+    Input('remove-material-btn', 'n_clicks'),
+    State('materials-store', 'data'),
+    prevent_initial_call=True
+)
+def update_materials(add, remove, data):
+    data = data or [0]
+    triggered = ctx.triggered_id
+    if triggered == 'add-material-btn':
+        new_index = max(data) + 1
+        return data + [new_index]
+    elif triggered == 'remove-material-btn' and len(data) > 1:
+        return data[:-1]
+    return data
+
+@callback(
+    Output('remove-material-btn', 'style'),
+    Input('materials-store', 'data')
+)
+def toggle_remove_material_button(data):
+    return {"text-align": "center", "display": "block"} if len(data) > 1 else {"text-align": "center", "display": "none"}
+
+
+
+@callback(
+    Output('materials-values-store', 'data', allow_duplicate=True),
+    Input({'type': 'material-name', 'index': ALL}, 'value'),
+    Input({'type': 'material-cost', 'index': ALL}, 'value'),
+    Input({'type': 'material-year', 'index': ALL}, 'value'),
+    Input({'type': 'material-desc', 'index': ALL}, 'value'),  
+    State({'type': 'material-name', 'index': ALL}, 'id'),
+    prevent_initial_call=True
+)
+def update_material_values(names, costs, years, descs, ids):
+    data = {}
+    for name, cost, year, desc, id_obj in zip(names, costs, years, descs, ids):
+        index = id_obj['index']
+        data[str(index)] = {
+            'name': name,
+            'cost': cost,
+            'desc': desc,
+            'year': year,
+            
+        }
+    return data
+
+
+@callback(
+    Output('materials-supplies-section', 'children'),
+    Input('materials-store', 'data'),
+    State('materials-values-store', 'data'),
+    Input({'type': 'grant-input', 'name': 'total-duration'}, 'value'),
+    Input({'type': 'grant-input', 'name': 'start-date'}, 'date'),
+)
+def render_materials(indexes, stored_data, duration, start_date):
+    duration = int(duration) if duration else 1
+    stored_data = stored_data or {}
+
+    try:
+        start_date_obj = date.fromisoformat(start_date)
+    except:
+        raise PreventUpdate
+
+    year_options = [
+        {"label": f"Year {i + 1} ({(start_date_obj + relativedelta(years=i)).year})",
+         "value": (start_date_obj + relativedelta(years=i)).year}
+        for i in range(duration)
+    ]
+
+    rows = []
+    for i in indexes:
+        val = stored_data.get(str(i), {})
+        rows.append(
+            dbc.Row([
+                dbc.Col(dbc.Select(
+                    id={"type": "material-name", "index": i},
+                    options=material_options,
+                    value=val.get('name', ""),
+                    placeholder="Select Material or Supply"
+                ), width=3),
+                dbc.Col(dbc.Input(
+                    id={"type": "material-cost", "index": i},
+                    type="number",
+                    placeholder="Enter Cost",
+                    value=val.get('cost', ""),
+                    className="", 
+                ), width=2),
+                dbc.Col(dbc.Textarea(
+                    id={"type": "material-desc", "index": i},
+                    placeholder="Enter Description",
+                    value=val.get('desc', ""),
+                    style={"height": "38px"}
+                ), width=5),
+                dbc.Col(dbc.Select(
+                    id={"type": "material-year", "index": i},
+                    options=year_options,
+                    value=val.get('year', None),
+                    placeholder="Select Year"
+                ), width=2),
+                
+            ], className="mb-3")
+        )
+    return rows
+
+
+@callback(
+    Output({'type': 'material-cost', 'index': MATCH}, 'className'),
+    Input({'type': 'material-cost', 'index': MATCH}, 'n_blur'),
+    State({'type': 'material-cost', 'index': MATCH}, 'value'),
+    State({'type': 'material-name', 'index': MATCH}, 'value'),
+    prevent_initial_call=True
+)
+def validate_material_cost_on_blur(n_blur, cost, material_name):
+    if material_name == 'Equipment >5K' and cost is not None and cost < 5000:
+        return "invalid-cost"
+    return ""
