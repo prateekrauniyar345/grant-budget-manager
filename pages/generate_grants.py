@@ -314,7 +314,8 @@ container = html.Div(
                                     dbc.Button(
                                         "Clear",
                                         id="clear-btn",
-                                        color="danger",
+                                        n_clicks=0,
+                                        color="danger", 
                                         className="w-40",
                                         style={"text-align": "center"},
                                     ),
@@ -357,6 +358,9 @@ def layout():
         dcc.Store(id='international-travel-values-store', data={}),
         dcc.Store(id='materials-store', data=[0]),
         dcc.Store(id='materials-values-store', data={}),
+
+        dcc.Location(id='clear-url', refresh=True),
+
 
 
 
@@ -1010,3 +1014,15 @@ def validate_material_cost_on_blur(n_blur, cost, material_name):
     if material_name == 'Equipment >5K' and cost is not None and cost < 5000:
         return "invalid-cost"
     return ""
+
+
+
+
+# reset all the fields when I press the clear button. 
+@callback(
+    Output('clear-url', 'href'),
+    Input('clear-btn', 'n_clicks'),
+    prevent_initial_call=True
+)
+def reload_page(n_clicks):
+    return "/home/generate-grants"
