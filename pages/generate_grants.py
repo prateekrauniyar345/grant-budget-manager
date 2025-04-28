@@ -8,9 +8,14 @@ from flask_login import current_user
 from dateutil.relativedelta import relativedelta
 from dash import MATCH, ALL, ctx
 from dash.exceptions import PreventUpdate
-from models import Grant, GrantPersonnel, GrantTravel, GrantMaterial, ExpenseSubcategory
+from models import Grant, GrantPersonnel, GrantTravel, GrantMaterial, ExpenseSubcategory, PI, CoPI, ProfessionalStaff, Postdoc, GRA, Undergrad, TempHelp
 from db_utils import get_db_session
 from datetime import date
+import urllib.parse
+from dash import callback_context  # already using ctx probably
+# Callback to handle form submission
+from sqlalchemy.exc import SQLAlchemyError
+from collections import OrderedDict
 
 
 # Register the page
@@ -52,6 +57,36 @@ material_options = [
     {"label": "Other", "value": "Other"},
     {"label": "Grad Student Tuition & Health Insurance", "value": "Grad Student Tuition & Health Insurance"},
 ]
+
+
+# list of personeels options
+PI_PERSONEELS_OPTIONS = []
+COPI_PERSONEELS_OPTIONS = []
+PROFESSIONAL_STAFF_OPTIONS = []
+POSTDOC_OPTIONS = []
+GRA_OPTIONS = []
+UNDERGRAD_OPTIONS = []
+TEMP_HELP_OPTIONS = []
+
+def load_personnel_options():
+    session = get_db_session()
+
+    try:
+        return {
+            "PI": [{"label": pi.full_name, "value": pi.full_name} for pi in session.query(PI).all()],
+            "Co-PI": [{"label": copi.full_name, "value": copi.full_name} for copi in session.query(CoPI).all()],
+            "UI Professional Staff": [{"label": staff.full_name, "value": staff.full_name} for staff in session.query(ProfessionalStaff).all()],
+            "Postdoc": [{"label": postdoc.full_name, "value": postdoc.full_name} for postdoc in session.query(Postdoc).all()],
+            "GRA": [{"label": gra.full_name, "value": gra.full_name} for gra in session.query(GRA).all()],
+            "Undergrad": [{"label": ug.full_name, "value": ug.full_name} for ug in session.query(Undergrad).all()],
+            "Temp Help": [{"label": temp.full_name, "value": temp.full_name} for temp in session.query(TempHelp).all()]
+        }
+    finally:
+        session.close()
+
+# Load once and store in memory (could be in a Flask global or during app init)
+personnel_cache = load_personnel_options()
+
 
 
 # Define Container
@@ -177,13 +212,7 @@ container = html.Div(
                             className="mb-3 w-40",
                             style={"text-align": "center"},
                         ),
-                        dbc.Button(
-                            "Remove Person",
-                            id="remove-person-btn",
-                            color="danger",
-                            className="mb-3 w-40",
-                            style={"text-align": "center" , "display" : "none"},
-                        ),
+                        
                     ], 
                     className="d-flex justify-content-center gap-3",
                 ),
@@ -225,13 +254,7 @@ container = html.Div(
                             className="mb-3 w-40",
                             style={"text-align": "center"},
                         ),
-                        dbc.Button(
-                            "Remove Domestic Travel",
-                            id="remove-domestic-travel-btn",
-                            color="danger",
-                            className="mb-3 w-40",
-                            style={"text-align": "center" , "display" : "none"},
-                        ),
+                       
                     ], 
                     className="d-flex justify-content-center gap-3",
                 ),
@@ -249,13 +272,7 @@ container = html.Div(
                             className="mb-3 w-40",
                             style={"text-align": "center"},
                         ),
-                        dbc.Button(
-                            "Remove International Travel",
-                            id="remove-international-travel-btn",
-                            color="danger",
-                            className="mb-3 w-40",
-                            style={"text-align": "center" , "display" : "none"},
-                        ),
+                        
                     ], 
                     className="d-flex justify-content-center gap-3",
                 ),
@@ -276,13 +293,7 @@ container = html.Div(
                             className="mb-3 w-40",
                             style={"text-align": "center"},
                         ),
-                        dbc.Button(
-                            "Remove Material/Supply",
-                            id="remove-material-btn",
-                            color="danger",
-                            className="mb-3 w-40",
-                            style={"text-align": "center", "display": "none"},
-                        ),
+                        
                     ],
                     className="d-flex justify-content-center gap-3",
                 ),
@@ -348,13 +359,18 @@ container = html.Div(
     id="grant-generator-container"
 )
 
-# Define the layout
-def layout():
-    
+
+def layout(**query_params):
+    edit_id = query_params.get("edit_id", None)
+
+    print("Edit ID:", edit_id)
+    print("query params:", query_params)
+
     return html.Div([
-        # dcc stores
-        dcc.Store(id='personnel-store', data=[0]),
-        dcc.Store(id='personnel-values-store', data=None),
+        dcc.Store(
+            id='personnel-store',
+            data=[{'index': 1, 'position': '', 'name': '', 'checkbox': False}]
+        ),
         dcc.Store(id='domestic-travel-store', data=[0]),
         dcc.Store(id='international-travel-store', data=[0]),
         dcc.Store(id='hours-store', data={}),
@@ -364,159 +380,179 @@ def layout():
         dcc.Store(id='materials-values-store', data={}),
 
         dcc.Location(id='clear-url', refresh=True),
+        dcc.Location(id='url', refresh=False),
 
-
+       
+        # to remove
+        html.Div(id="debug-edit-id", style={"display": "none"}),
+        # html.Div(id="debug-fields", style={"color": "red"}),
+        html.Div(id="form-mounted-flag", style={}),
 
 
 
         html.H3('Generate Grants', className="text-center mt-4 mb-4", style={"color": "#2c3e50"}),
+
         dcc.Loading(
             type='circle',
             children=[
                 container,
-                success_toast,  # Add success toast
-                failure_toast   # Add failure toast
+                success_toast,
+                failure_toast
             ],
         ),
+
+         # ✅ Pre-fill the Store directly here
+        dcc.Store(id='edit-grant-id', data=edit_id),
+
     ])
 
 
 
-# Callback to handle form submission
-from sqlalchemy.exc import SQLAlchemyError
 
 @callback(
-    [Output('success-toast', 'is_open'), Output('failure-toast', 'is_open')],
+    Output('success-toast', 'is_open'),
+    Output('failure-toast', 'is_open'),
     Input('submit-btn', 'n_clicks'),
     [
-        State({'type': 'grant-input', 'name': 'grant-title'}, 'value'),
-        State({'type': 'grant-input', 'name': 'funding-agency'}, 'value'),
-        State({'type': 'grant-input', 'name': 'total-duration'}, 'value'),
-        State({'type': 'grant-input', 'name': 'grant-status'}, 'value'),
-        State({'type': 'grant-input', 'name': 'start-date'}, 'date'),
-        State({'type': 'grant-input', 'name': 'end-date'}, 'date'),
-        State({'type': 'grant-input', 'name': 'grant-description'}, 'value'),
-        State('personnel-values-store', 'data'),
+        State({'type': 'grant-input', 'name': 'grant-title'},      'value'),
+        State({'type': 'grant-input', 'name': 'funding-agency'},   'value'),
+        State({'type': 'grant-input', 'name': 'total-duration'},   'value'),
+        State({'type': 'grant-input', 'name': 'grant-status'},     'value'),
+        State({'type': 'grant-input', 'name': 'start-date'},       'date'),
+        State({'type': 'grant-input', 'name': 'end-date'},         'date'),
+        State({'type': 'grant-input', 'name': 'grant-description'},'value'),
+        # ← now read from the single personnel-store:
+        State('personnel-store', 'data'),
         State('hours-store', 'data'),
-        State('domestic-travel-values-store', 'data'),
+        State('domestic-travel-values-store',      'data'),
         State('international-travel-values-store', 'data'),
-        State('materials-values-store', 'data')
+        State('materials-values-store',            'data'),
+        State('edit-grant-id',                     'data'),
     ],
     prevent_initial_call=True
 )
-def submit_grant(n_clicks, title, funding_agency, duration, status, start_date, end_date, description,
-                 personnel_data, hours_data,
-                 domestic_travel, international_travel,
-                 materials_data):
-    
-    if not all([title, funding_agency, duration, status, start_date, end_date]):
+def submit_grant(n_clicks,
+                 title, agency, duration, status,
+                 start_date, end_date, description,
+                 personnel_rows, hours_data,
+                 dom_tr, int_tr, mat_data,
+                 edit_grant_id):
+    # basic validation
+    if not all([title, agency, duration, status, start_date, end_date]):
         return False, True
 
     session = get_db_session()
-
-    # Utility to normalize empty strings or None
-    def normalize_empty(val):
-        return val if val not in ("", None) else None
+    def normalize_empty(v): return v if v not in ("", None) else None
 
     try:
         if not current_user.is_authenticated:
             return False, True
 
-        with session.begin():  # This begins a transaction. Will rollback on exception automatically.
+        with session.begin():
+            if edit_grant_id:
+                # ── UPDATE EXISTING ──
+                g = session.query(Grant)\
+                           .filter_by(id=int(edit_grant_id),
+                                      user_id=current_user.id)\
+                           .first()
+                if not g:
+                    return False, True
 
-            # --- Main Grant ---
-            new_grant = Grant(
-                user_id=current_user.id,
-                title=title,
-                description=normalize_empty(description),
-                funding_agency=funding_agency,
-                duration=duration,
-                start_date=start_date,
-                end_date=end_date,
-                status=status
-            )
-            session.add(new_grant)
-            session.flush()  # Ensure new_grant.id is populated
+                # update fields...
+                grant_id = g.id
 
-            grant_id = new_grant.id
+                # clear old related rows
+                session.query(GrantPersonnel).filter_by(grant_id=grant_id).delete()
+                session.query(GrantTravel).   filter_by(grant_id=grant_id).delete()
+                session.query(GrantMaterial). filter_by(grant_id=grant_id).delete()
 
-            # --- Personnel ---
-            if personnel_data and hours_data:
-                start_year = date.fromisoformat(start_date).year  # actual year like 2025
-                for person in personnel_data:
-                    index = person.get('index')
-                    name = person.get('name')
-                    position = person.get('position')
-                    duration = int(duration)
-                    for offset in range(duration):  # offset: 0, 1, 2, ..., duration-1
-                        actual_year = start_year + offset
-                        key = f"{index}-{offset + 1}"  # still match UI key: 1, 2, 3...
-                        hours = normalize_empty(hours_data.get(key))
+            else:
+                # ── INSERT NEW ──
+                new = Grant(
+                    user_id=current_user.id,
+                    title=title,
+                    description=normalize_empty(description),
+                    funding_agency=agency,
+                    duration=duration,
+                    start_date=start_date,
+                    end_date=end_date,
+                    status=status
+                )
+                session.add(new)
+                session.flush()
+                grant_id = new.id
 
-                        if hours is not None:
+            # ── PERSONNEL ──
+            if personnel_rows and hours_data:
+                sy = date.fromisoformat(start_date).year
+                for row in personnel_rows:
+                    # skip any completely blank row
+                    if not row.get('name') or not row.get('position'):
+                        continue
+                    idx = row['index']
+                    for off in range(int(duration)):
+                        key = f"{idx}-{off+1}"
+                        hrs = normalize_empty(hours_data.get(key))
+                        if hrs is not None:
                             session.add(GrantPersonnel(
                                 grant_id=grant_id,
-                                name=normalize_empty(name),
-                                position=normalize_empty(position),
-                                year=actual_year,  #  Store as real year like 2025
-                                estimated_hours=hours
+                                name=row['name'],
+                                position=row['position'],
+                                year=sy + off,
+                                estimated_hours=hrs
                             ))
 
-            # --- Domestic Travel ---
-            if domestic_travel:
-                for val in domestic_travel.values():
-                    travel_year = normalize_empty(val.get('year'))  # Get actual calendar year
-                    if val.get('name') or travel_year:
-                        session.add(GrantTravel(
-                            grant_id=grant_id,
-                            travel_type='Domestic',
-                            name=normalize_empty(val.get('name')),
-                            description=normalize_empty(val.get('desc')),
-                            amount=normalize_empty(val.get('amount')),
-                            year=travel_year  #  Actual year like 2025
-                        ))
+            # ── DOMESTIC TRAVEL ──
+            for item in (dom_tr or {}).values():
+                yr = normalize_empty(item.get('year'))
+                if item.get('name') or yr:
+                    session.add(GrantTravel(
+                        grant_id=grant_id,
+                        travel_type='Domestic',
+                        name=item.get('name'),
+                        description=normalize_empty(item.get('desc')),
+                        amount=normalize_empty(item.get('amount')),
+                        year=yr
+                    ))
 
-            # --- International Travel ---
-            if international_travel:
-                for val in international_travel.values():
-                    travel_year = normalize_empty(val.get('year'))  # Get actual calendar year
-                    if val.get('name') or travel_year:
-                        session.add(GrantTravel(
-                            grant_id=grant_id,
-                            travel_type='International',
-                            name=normalize_empty(val.get('name')),
-                            description=normalize_empty(val.get('desc')),
-                            amount=normalize_empty(val.get('amount')),
-                            year=travel_year  # Actual year like 2026
-                        ))
+            # ── INTERNATIONAL TRAVEL ──
+            for item in (int_tr or {}).values():
+                yr = normalize_empty(item.get('year'))
+                if item.get('name') or yr:
+                    session.add(GrantTravel(
+                        grant_id=grant_id,
+                        travel_type='International',
+                        name=item.get('name'),
+                        description=normalize_empty(item.get('desc')),
+                        amount=normalize_empty(item.get('amount')),
+                        year=yr
+                    ))
 
+            # ── MATERIALS & SUPPLIES ──
+            for item in (mat_data or {}).values():
+                cost = normalize_empty(item.get('cost'))
+                yr   = normalize_empty(item.get('year'))
+                if cost is not None or yr is not None:
+                    sub = session.query(ExpenseSubcategory)\
+                                 .filter_by(name=item.get('name'))\
+                                 .first()
+                    session.add(GrantMaterial(
+                        grant_id=grant_id,
+                        category_id = sub.category_id if sub else None,
+                        subcategory_id= sub.id if sub else None,
+                        cost=cost,
+                        description=normalize_empty(item.get('desc')),
+                        year=yr
+                    ))
 
-            # --- Materials ---
-            if materials_data:
-                for val in materials_data.values():
-                    cost = normalize_empty(val.get('cost'))
-                    year = normalize_empty(val.get('year'))
-                    if cost is not None or year is not None:
-                        subcat = session.query(ExpenseSubcategory).filter_by(name=val.get('name')).first()
-                        session.add(GrantMaterial(
-                            grant_id=grant_id,
-                            category_id=subcat.category_id,
-                            subcategory_id=subcat.id if subcat else None,
-                            cost=cost,
-                            description=normalize_empty(val.get('desc')),
-                            year=year
-                        ))
+        return True, False
 
-        return True, False  # Success toast
-
-    except SQLAlchemyError as err:
-        print("Submission Error:", err)
-        return False, True  # Failure toast
+    except SQLAlchemyError as e:
+        print("Submission Error:", e)
+        return False, True
 
     finally:
         session.close()
-
-
 
 
 @callback(
@@ -538,305 +574,263 @@ def update_end_date(start_date, duration):
 
 
 
-
-
+############################################
+# Personeel Section Callbacks
+############################################
 
 ############################################
-# Personeel Expenses Callbacks
+# 1️  Single “manager” for Add/Del/Edits
 ############################################
-# Callback to modify list of personnel row indices
 @callback(
-    Output('personnel-store', 'data'),
-    Output('personnel-values-store', 'data'),
-    Input('add-person-btn', 'n_clicks'),
-    Input('remove-person-btn', 'n_clicks'),
-    State('personnel-store', 'data'),
-    State({'type': 'grant-input', 'name': 'person-name', 'index': ALL}, 'value'),
-    State({'type': 'grant-input', 'name': 'person-position', 'index': ALL}, 'value'),
-    State({'type': 'same-each-year', 'index': ALL}, 'value'),
-    prevent_initial_call=True
+     Output('personnel-store', 'data'),
+     Input('add-person-btn', 'n_clicks'),
+     Input({'type':'grant-input','name':'delete-row-option','index':ALL}, 'n_clicks'),
+     Input({'type':'grant-input','name':'person-position','index':ALL}, 'value'),
+     Input({'type':'grant-input','name':'person-name','index':ALL}, 'value'),
+     State('personnel-store', 'data'),
+     prevent_initial_call=True
 )
-def update_person_list(add_clicks, remove_clicks, current_data, names, positions, checkboxes):
-    triggered = ctx.triggered_id
-    new_data = current_data.copy()
+def manage_personnel(add_clicks, delete_clicks, positions, names, rows):
+     rows = rows or []
+     trig = ctx.triggered_id
 
-    if triggered == 'add-person-btn':
-        new_index = max(current_data) + 1 if current_data else 0
-        new_data.append(new_index)
-    elif triggered == 'remove-person-btn' and len(current_data) > 1:
-        new_data = current_data[:-1]  # Always remove last index
+     # ➕ Add a blank row
+     if trig == 'add-person-btn':
+         new_idx = max(r['index'] for r in rows) + 1 if rows else 1
+         return rows + [{'index': new_idx, 'position': '', 'name': ''}]
 
-    # Only store values for rows that still exist after the update
-    filtered_personnel = []
-    for i, n, p, c in zip(current_data, names, positions, checkboxes):
-        if i in new_data:
-            filtered_personnel.append({
-                'index': i,
-                'name': n,
-                'position': p,
-                'checkbox': c
-            })
+     # ❌ Remove a row
+     if isinstance(trig, dict) and trig.get('name') == 'delete-row-option':
+         idx = trig['index']
+         return [r for r in rows if r['index'] != idx]
 
-    return new_data, filtered_personnel
-
-
+     # ✏️ Field edits
+     updated = []
+     for r, pos, nm in zip(rows, positions, names):
+         r2 = r.copy()
+         r2['position'] = pos or r2['position']
+         r2['name']     = nm  or r2['name']
+         updated.append(r2)
+     return updated
 
 
-# Callback to render rows based on indices in personnel-store
+
+############################################
+# 2️Render the personnel rows
+############################################
 @callback(
     Output('personnel-section', 'children'),
     Input('personnel-store', 'data'),
-    State('personnel-values-store', 'data')
 )
-def render_personnel_rows(indexes, stored_data):
-    stored_data = stored_data or []
-    index_to_data = {item['index']: item for item in stored_data}
-    
-    rows = []
-    for i in indexes:
-        person_data = index_to_data.get(i, {})
-        rows.append(
+def render_personnel_rows(rows):
+    rows = rows or []
+    children = []
+    for r in rows:
+        idx = r['index']
+        children.append(
             dbc.Row([
-                dbc.Col([
-                    dbc.Label("Name"),
-                    dbc.Input(
-                        id={"type": "grant-input", "name": "person-name", "index": i},
-                        type='text',
-                        placeholder="Enter full name",
-                        className="mb-3",
-                        value=person_data.get('name', "")
-                    ),
-                ], width=6),
-
+                # Position
                 dbc.Col([
                     dbc.Label("Position"),
                     dbc.Select(
-                        id={"type": "grant-input", "name": "person-position", "index": i},
+                        id={"type":"grant-input","name":"person-position","index":idx},
                         options=[
-                            {"label": "PI", "value": "PI"},
-                            {"label": "Co-PI", "value": "Co-PI"},
-                            {"label": "Professional Staff", "value": "UI Professional Staff"},
-                            {"label": "Postdoc", "value": "Postdoc"},
-                            {"label": "GRA", "value": "GRA"},
-                            {"label": "Undergrad", "value": "Undergrad"},
-                            {"label": "Temp Help", "value": "Temp Help"},
+                            {"label":"PI",                   "value":"PI"},
+                            {"label":"Co-PI",                "value":"Co-PI"},
+                            {"label":"UI Professional Staff","value":"UI Professional Staff"},
+                            {"label":"Postdoc",              "value":"Postdoc"},
+                            {"label":"GRA",                  "value":"GRA"},
+                            {"label":"Undergrad",            "value":"Undergrad"},
+                            {"label":"Temp Help",            "value":"Temp Help"},
                         ],
+                        value=r['position'],
                         placeholder="Select role",
-                        className="mb-3",
-                        value=person_data.get('position', "")
+                    ),
+                ], width=5),
+
+                # Name
+                dbc.Col([
+                    dbc.Label("Name"),
+                    dcc.Dropdown(
+                        id={"type":"grant-input","name":"person-name","index":idx},
+                        options=personnel_cache.get(r['position'], []),
+                        value=r['name'],
+                        placeholder="Select full name",
                     ),
                 ], width=6),
+
+                # Remove
+                # id={"type":"grant-input","name":"delete-row-option","index":idx},
+                dbc.Col(
+                        children=[
+                            dbc.Label("Remove", className="mb-1 text-white"),
+                            dbc.Button(
+                                "❌",
+                                id={"type":"grant-input","name":"delete-row-option","index":idx},
+                                color="danger",
+                                size="sm",
+                                className="bg-light mt-1",  # adds space between label and button
+                                disabled=False
+                            ),
+                        ],
+                        width=1,
+                        className="d-flex flex-column align-items-center"
+                    ),
             ], className="mb-2")
         )
-    return rows
+    return children
 
 
-# callback to show the buttons to remove for when we add a person
+############################################
+# 3️ Keep Name dropdown in sync with Position
+############################################
 @callback(
-    Output("remove-person-btn", "style"),
-    Input("add-person-btn", "n_clicks"),
-    Input('personnel-store', 'data'),
+    Output({'type':'grant-input','name':'person-name','index':MATCH}, 'options'),
+    Input({'type':'grant-input','name':'person-position','index':MATCH}, 'value')
 )
-def show_remove_button(add_clicks, current_data):
-    if add_clicks and len(current_data) > 1:
-        return {"text-align": "center" , "display" : "block"}
-    else:
-        return {"text-align": "center" , "display" : "none"}
-    
+def update_person_name_dropdown(position):
+    return personnel_cache.get(position, [])
 
 
 ############################################
-# Estimated Working hours Callbacks
+# 4️  Render Estimated‐Hours (per row)
 ############################################
-
-# estimated hours section
-# Dynamically create inputs for years based on selected duration
 @callback(
     Output('estimated-hours-section', 'children'),
-    Input({'type': 'grant-input', 'name': 'person-name', 'index': ALL}, 'value'),
-    Input({'type': 'grant-input', 'name': 'person-position', 'index': ALL}, 'value'),
-    Input({'type': 'grant-input', 'name': 'total-duration'}, 'value'),
-    State('personnel-store', 'data'),
-    State('personnel-values-store', 'data'),
+    Input('personnel-store',                       'data'),
+    Input({'type':'grant-input','name':'total-duration'}, 'value'),
+    Input({'type':'grant-input','name':'start-date'},     'date'),
     State('hours-store', 'data'),
-    State({'type': 'grant-input', 'name': 'start-date'}, 'date'),  # <-- Add this
+    prevent_initial_call=True
 )
-def render_estimated_hours_rows(names, positions, duration, indexes, personnel_data, hours_store, start_date):
-    duration = int(duration) if duration else 1
-    index_to_data = {
-        i: {'name': n, 'position': p}
-        for i, n, p in zip(indexes, names, positions)
-        if n and p
-    }
-
-    # Prepare year labels using start date
-    year_labels = []
-    try:
-        start_year = date.fromisoformat(start_date).year
-        year_labels = [str(start_year + y) for y in range(duration)]
-    except:
-        year_labels = [f"Year {y+1}" for y in range(duration)]
-
+def render_estimated_hours(rows, duration, start_date, hours_store):
+    if not rows:
+        raise PreventUpdate
     hours_store = hours_store or {}
-    rows = []
+    duration = int(duration or 1)
 
-    for i in indexes:
-        person = index_to_data.get(i)
-        if not person:
-            continue
+    # year labels
+    try:
+        base = date.fromisoformat(start_date).year
+        labels = [str(base + i) for i in range(duration)]
+    except:
+        labels = [f"Year {i+1}" for i in range(duration)]
 
-        year_inputs = [
+    output = []
+    for r in rows:
+        idx = r['index']
+        inputs = [
             dbc.Col(
                 dbc.Input(
-                    id={"type": "hours-input", "year": y + 1, "index": i},
-                    type='number',
-                    placeholder=year_labels[y],
-                    value=hours_store.get(f"{i}-{y+1}", ""),
-                    className="mb-2"
+                    id={"type":"hours-input","index":idx,"year":y},
+                    type="number",
+                    placeholder=labels[y-1],
+                    value=hours_store.get(f"{idx}-{y}", ""),
                 ),
-                width=12 // duration
+                width=12//duration
             )
-            for y in range(duration)
+            for y in range(1, duration+1)
         ]
-
-        checkbox_checked = False
-        for item in personnel_data or []:
-            if item['index'] == i:
-                checkbox_checked = item.get('checkbox', False)
-
-        rows.append(
+        output.append(
             dbc.Row([
-                dbc.Col(html.P(person['name'], className="mb-0"), width=3),
-                dbc.Col(html.P(person['position'], className="mb-0"), width=2),
-                dbc.Col(dbc.Row(year_inputs, className="g-1"), width=5),
+                dbc.Col(html.P(r['name'], className="mb-0"),     width=3),
+                dbc.Col(html.P(r['position'], className="mb-0"), width=2),
+                dbc.Col(dbc.Row(inputs, className="g-1"),       width=5),
                 dbc.Col(
                     dbc.Checkbox(
-                        id={"type": "same-each-year", "index": i},
-                        value=checkbox_checked,
+                        id={"type":"same-each-year","index":idx},
+                        value=r.get('checkbox', False)
                     ),
                     width=2
                 ),
             ], className="align-items-center mb-2")
         )
-
-    return rows
-
-
-@callback(
-    Output('personnel-values-store', 'data', allow_duplicate=True),
-    Input({'type': 'same-each-year', 'index': ALL}, 'value'),
-    State({'type': 'grant-input', 'name': 'person-name', 'index': ALL}, 'value'),
-    State({'type': 'grant-input', 'name': 'person-position', 'index': ALL}, 'value'),
-    State('personnel-store', 'data'),
-    prevent_initial_call=True
-)
-def update_checkbox_state(checkbox_values, names, positions, indexes):
-    data = []
-    for i, name, position, checkbox in zip(indexes, names, positions, checkbox_values):
-        data.append({
-            'index': i,
-            'name': name,
-            'position': position,
-            'checkbox': checkbox
-        })
-    return data
+    return output
 
 
 
-# Create a callback to save values to hours-store:
+
+
+############################################
+# 5️ Save hours-store on input
+############################################
 @callback(
     Output('hours-store', 'data', allow_duplicate=True),
-    Input({'type': 'hours-input', 'year': ALL, 'index': ALL}, 'value'),
-    State({'type': 'hours-input', 'year': ALL, 'index': ALL}, 'id'),
+    Input({'type':'hours-input','index':ALL,'year':ALL}, 'value'),
+    State({'type':'hours-input','index':ALL,'year':ALL}, 'id'),
     prevent_initial_call=True
 )
-def save_hour_values(values, ids):
+def save_hour_values(vals, ids):
     data = {}
-    for val, id_obj in zip(values, ids):
-        key = f"{id_obj['index']}-{id_obj['year']}"
-        data[key] = val
+    for v, id_obj in zip(vals, ids):
+        data[f"{id_obj['index']}-{id_obj['year']}"] = v
     return data
 
 
-# callback for syncing values when “Same for Each Year” is checked
+############################################
+# 6️ “Same Each Year” copier
+############################################
 @callback(
-    Output({'type': 'hours-input', 'year': ALL, 'index': MATCH}, 'value'),
-    Input({'type': 'same-each-year', 'index': MATCH}, 'value'),
-    State({'type': 'hours-input', 'year': ALL, 'index': MATCH}, 'value'),
+    Output({'type':'hours-input','index':MATCH,'year':ALL}, 'value'),
+    Input({'type':'same-each-year','index':MATCH}, 'value'),
+    State({'type':'hours-input','index':MATCH,'year':ALL}, 'value'),
     prevent_initial_call=True
 )
-def copy_hours_if_same_for_all(same_for_each, year_values):
-    if same_for_each:
-        first_year_value = year_values[0]
-        return [first_year_value] * len(year_values)
-    return year_values
+def copy_hours_if_same(checked, year_vals):
+    return [year_vals[0]] * len(year_vals) if checked else year_vals
 
 
-
-
-
-
-
-
-
+# ========================================================================================================================================
 
 ############################################
 # Travel Expenses Callbacks
 ############################################
 
-# callback to dynamically create inputs for travel expenses: both for domestic and international
+
 @callback(
     Output('domestic-travel-store', 'data'),
     Input('add-domestic-travel-btn', 'n_clicks'),
-    Input('remove-domestic-travel-btn', 'n_clicks'),
+    Input({'type': 'travel-year', 'name': 'remove-row-option-domestic', 'index': ALL}, 'n_clicks'),
     State('domestic-travel-store', 'data'),
     prevent_initial_call=True
 )
-def update_domestic_travel(add_clicks, remove_clicks, data):
+def update_domestic_travel(add_clicks, delete_clicks, current_data):
     triggered = ctx.triggered_id
-    data = data or [0]
+    data = current_data or [0]
 
     if triggered == 'add-domestic-travel-btn':
-        new_index = max(data) + 1
+        new_index = max(data) + 1 if data else 1
         return data + [new_index]
-    elif triggered == 'remove-domestic-travel-btn' and len(data) > 1:
-        return data[:-1]
+
+    elif isinstance(triggered, dict) and triggered.get('name') == 'remove-row-option-domestic':
+        index_to_remove = triggered.get('index')
+        if len(data) > 1:
+            return [i for i in data if i != index_to_remove]
+
     return data
 
-# Show/Hide Remove Button for Domestic
-@callback(
-    Output('remove-domestic-travel-btn', 'style'),
-    Input('domestic-travel-store', 'data')
-)
-def toggle_remove_domestic_button(data):
-    return {"text-align": "center", "display": "block"} if len(data) > 1 else {"text-align": "center", "display": "none"}
 
-#  International Travel Row Manager
 @callback(
     Output('international-travel-store', 'data'),
     Input('add-international-travel-btn', 'n_clicks'),
-    Input('remove-international-travel-btn', 'n_clicks'),
+    Input({'type': 'travel-year', 'name': 'remove-row-option-international', 'index': ALL}, 'n_clicks'),
     State('international-travel-store', 'data'),
     prevent_initial_call=True
 )
-def update_international_travel(add_clicks, remove_clicks, data):
+def update_international_travel(add_clicks, delete_clicks, data):
     triggered = ctx.triggered_id
     data = data or [0]
 
     if triggered == 'add-international-travel-btn':
-        new_index = max(data) + 1
+        new_index = max(data) + 1 if data else 1
         return data + [new_index]
-    elif triggered == 'remove-international-travel-btn' and len(data) > 1:
-        return data[:-1]
-    return data
 
-# Show/Hide Remove Button for International
-@callback(
-    Output('remove-international-travel-btn', 'style'),
-    Input('international-travel-store', 'data')
-)
-def toggle_remove_international_button(data):
-    return {"text-align": "center", "display": "block"} if len(data) > 1 else {"text-align": "center", "display": "none"}
+    elif isinstance(triggered, dict) and triggered.get('name') == 'remove-row-option-international':
+        index_to_remove = triggered.get('index')
+        if len(data) > 1:
+            return [i for i in data if i != index_to_remove]
+
+    return data
 
 
 # Update domestic travel values store
@@ -924,7 +918,7 @@ def render_domestic_travels(indexes, stored_data, duration, start_date):
                     placeholder="Description",
                     value=val.get('desc', ""),
                     style={"height": "38px"}
-                ), width=5),
+                ), width=4),
                 dbc.Col(dbc.Input(
                     id={"type": "travel-amount", "scope": "domestic", "index": i},
                     type="number",
@@ -937,6 +931,21 @@ def render_domestic_travels(indexes, stored_data, duration, start_date):
                     value=val.get('year', None),
                     placeholder="Select Year"
                 ), width=2),
+                dbc.Col(
+                        children=[
+                            # dbc.Label("Remove", className="mb-1"),
+                            dbc.Button(
+                                "❌",
+                                id={"type": "travel-year", "name": "remove-row-option-domestic", "index": i},
+                                color="danger",
+                                size="sm",
+                                className="bg-light mt-1",  # adds space between label and button
+                                disabled=False
+                            ),
+                        ],
+                        width=1,
+                        className="d-flex flex-column align-items-center"
+                    ),
             ], className="mb-3")
         )
     return rows
@@ -980,7 +989,7 @@ def render_international_travels(indexes, stored_data, duration, start_date):
                     placeholder="Description",
                     value=val.get('desc', ""),
                     style={"height": "38px"}
-                ), width=5),
+                ), width=4),
                 dbc.Col(dbc.Input(
                     id={"type": "travel-amount", "scope": "international", "index": i},
                     type="number",
@@ -993,6 +1002,21 @@ def render_international_travels(indexes, stored_data, duration, start_date):
                     value=val.get('year', None),
                     placeholder="Select Year"
                 ), width=2),
+                dbc.Col(
+                        children=[
+                            # dbc.Label("Remove", className="mb-1"),
+                            dbc.Button(
+                                "❌",
+                                id={"type": "travel-year", "name": "remove-row-option-international", "index": i},
+                                color="danger",
+                                size="sm",
+                                className="bg-light mt-1",  # adds space between label and button
+                                disabled=False
+                            ),
+                        ],
+                        width=1,
+                        className="d-flex flex-column align-items-center"
+                    ),
             ], className="mb-3")
         )
     return rows
@@ -1004,29 +1028,35 @@ def render_international_travels(indexes, stored_data, duration, start_date):
 ############################################
 # Material and Supplies Callbacks
 ############################################
+
 @callback(
     Output('materials-store', 'data'),
     Input('add-material-btn', 'n_clicks'),
-    Input('remove-material-btn', 'n_clicks'),
+    Input({'type': 'material', 'name': 'remove-row-option', 'index': ALL}, 'n_clicks'),
     State('materials-store', 'data'),
     prevent_initial_call=True
 )
-def update_materials(add, remove, data):
-    data = data or [0]
+def update_materials(add_clicks, delete_clicks, data):
     triggered = ctx.triggered_id
+    data = data or [0]
+
     if triggered == 'add-material-btn':
-        new_index = max(data) + 1
+        new_index = max(data) + 1 if data else 1
         return data + [new_index]
-    elif triggered == 'remove-material-btn' and len(data) > 1:
-        return data[:-1]
+
+    elif isinstance(triggered, dict) and triggered.get('name') == 'remove-row-option':
+        index_to_remove = triggered['index']
+        if len(data) > 1:
+            return [i for i in data if i != index_to_remove]
+
     return data
 
-@callback(
-    Output('remove-material-btn', 'style'),
-    Input('materials-store', 'data')
-)
-def toggle_remove_material_button(data):
-    return {"text-align": "center", "display": "block"} if len(data) > 1 else {"text-align": "center", "display": "none"}
+# @callback(
+#     Output('remove-material-btn', 'style'),
+#     Input('materials-store', 'data')
+# )
+# def toggle_remove_material_button(data):
+#     return {"text-align": "center", "display": "block"} if len(data) > 1 else {"text-align": "center", "display": "none"}
 
 
 
@@ -1098,13 +1128,28 @@ def render_materials(indexes, stored_data, duration, start_date):
                     placeholder="Enter Description",
                     value=val.get('desc', ""),
                     style={"height": "38px"}
-                ), width=5),
+                ), width=4),
                 dbc.Col(dbc.Select(
                     id={"type": "material-year", "index": i},
                     options=year_options,
                     value=val.get('year', None),
                     placeholder="Select Year"
                 ), width=2),
+                dbc.Col(
+                        children=[
+                            # dbc.Label("Remove", className="mb-1"),
+                            dbc.Button(
+                                "❌",
+                                id={"type": "material", "name": "remove-row-option", "index": i},
+                                color="danger",
+                                size="sm",
+                                className="bg-light mt-1",  # adds space between label and button
+                                disabled=False
+                            ),
+                        ],
+                        width=1,
+                        className="d-flex flex-column align-items-center"
+                    ),
                 
             ], className="mb-3")
         )
@@ -1134,3 +1179,173 @@ def validate_material_cost_on_blur(n_blur, cost, material_name):
 )
 def reload_page(n_clicks):
     return "/home/generate-grants"
+
+
+
+
+
+
+
+# callback for edit options
+############################################
+# Edit Grant Callbacks
+############################################
+
+@callback(
+    # 1) PERSONNEL
+    Output('personnel-store', 'data', allow_duplicate=True),
+    # 2) HOURS
+    Output('hours-store', 'data'),
+    # 3) DOMESTIC TRAVEL
+    Output('domestic-travel-store',       'data', allow_duplicate=True),
+    Output('domestic-travel-values-store','data'),
+    # 4) INTERNATIONAL TRAVEL
+    Output('international-travel-store',       'data', allow_duplicate=True),
+    Output('international-travel-values-store','data'),
+    # 5) MATERIALS
+    Output('materials-store',        'data', allow_duplicate=True),
+    Output('materials-values-store','data'),
+    # 6) METADATA
+    Output({'type':'grant-input','name':'grant-title'},       'value'),
+    Output({'type':'grant-input','name':'funding-agency'},    'value'),
+    Output({'type':'grant-input','name':'total-duration'},    'value'),
+    Output({'type':'grant-input','name':'grant-status'},      'value'),
+    Output({'type':'grant-input','name':'start-date'},        'date'),
+    Output({'type':'grant-input','name':'end-date'},          'date', allow_duplicate=True),
+    Output({'type':'grant-input','name':'grant-description'}, 'value'),
+
+    Input("debug-edit-id", "children"),
+    Input("edit-grant-id", "data"),
+    prevent_initial_call=True
+)
+def load_all_grant_fields(_, grant_id):
+    print("Loading grant ID:", grant_id)
+    if not grant_id:
+        raise PreventUpdate
+
+    session = get_db_session()
+    try:
+        grant = session.query(Grant).filter_by(id=int(grant_id),
+                                                user_id=current_user.id).first()
+        if not grant:
+            raise PreventUpdate
+
+        def normalize_empty(v):
+            return v if v not in ("", None) else None
+
+        # ─── PERSONNEL + HOURS ───
+        start_year = grant.start_date.year
+        grouped = OrderedDict()
+        for p in session.query(GrantPersonnel)\
+                        .filter_by(grant_id=grant_id):
+            key = (p.name, p.position)
+            grouped.setdefault(key, {})[p.year - start_year + 1] = p.estimated_hours
+
+        personnel_rows = []
+        hours_data     = {}
+        for idx, ((name, position), year_map) in enumerate(grouped.items(), start=1):
+            personnel_rows.append({
+                "index":    idx,
+                "name":     name,
+                "position": position,
+                "checkbox": False
+            })
+            for offset, hrs in year_map.items():
+                hours_data[f"{idx}-{offset}"] = hrs
+
+        # ─── DOMESTIC TRAVEL ───
+        dom_rows = session.query(GrantTravel)\
+                          .filter_by(grant_id=grant_id,
+                                     travel_type='Domestic')\
+                          .all()
+        dom_indices = [i+1 for i in range(len(dom_rows))]
+        dom_data = {
+            str(i+1): {
+                "name":   t.name,
+                "desc":   t.description,
+                "amount": t.amount,
+                "year":   t.year
+            }
+            for i, t in enumerate(dom_rows)
+        }
+
+        # ─── INTERNATIONAL TRAVEL ───
+        intl_rows = session.query(GrantTravel)\
+                           .filter_by(grant_id=grant_id,
+                                      travel_type='International')\
+                           .all()
+        int_indices = [i+1 for i in range(len(intl_rows))]
+        int_data = {
+            str(i+1): {
+                "name":   t.name,
+                "desc":   t.description,
+                "amount": t.amount,
+                "year":   t.year
+            }
+            for i, t in enumerate(intl_rows)
+        }
+
+        # ─── MATERIALS & SUPPLIES ───
+        mat_rows = session.query(GrantMaterial)\
+                          .filter_by(grant_id=grant_id)\
+                          .all()
+        mat_indices = [i+1 for i in range(len(mat_rows))]
+        mat_data = {}
+        for i, m in enumerate(mat_rows, start=1):
+            sub = session.query(ExpenseSubcategory).get(m.subcategory_id)
+            mat_data[str(i)] = {
+                "name": sub.name     if sub else None,
+                "desc": m.description,
+                "cost": m.cost,
+                "year": m.year
+            }
+
+        # ─── METADATA ───
+        title   = grant.title
+        agency  = grant.funding_agency
+        dur     = grant.duration
+        status  = grant.status
+        sd      = grant.start_date.isoformat()
+        ed      = (grant.start_date + relativedelta(years=+dur))\
+                     .isoformat() if grant.end_date is None else grant.end_date.isoformat()
+        desc    = normalize_empty(grant.description)
+
+        return (
+            # personnel + hours
+            personnel_rows, hours_data,
+            # domestic travel
+            dom_indices, dom_data,
+            # international travel
+            int_indices, int_data,
+            # materials
+            mat_indices, mat_data,
+            # metadata
+            title, agency, dur, status, sd, ed, desc
+        )
+
+    finally:
+        session.close()
+
+
+
+
+@callback(
+    Output("debug-edit-id", "children"),
+    Input("edit-grant-id", "data"), 
+    prevent_initial_call=False
+)
+def show_debug_data(data):
+    if data is not None:
+        session = get_db_session()
+        try:
+            grant = session.query(Grant).filter_by(id=int(data)).first()
+            print("Grant Is:", grant)
+            print("name : ", grant.title)
+            print("id :", grant.id)
+            print("status :", grant.status)
+        finally:
+            session.close()
+        return f"Edit grant ID: {data, grant.id , grant.title , grant.status}"
+    return f"Edit grant ID: {data}"
+
+

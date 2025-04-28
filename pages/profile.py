@@ -1,16 +1,4 @@
-# import dash
-# from dash import html
-
-
-# dash.register_page(__name__, path='/profile')
-
-# def layout():
-#     layout = html.Div([
-#         html.H1('This is our profile page'),
-#         html.Div('This is our profilwwwe page content.'),
-#     ])
-#     return layout
-    
+ 
 
 import dash
 from dash import html, dcc, Input, Output, State, callback
@@ -20,6 +8,7 @@ from models import User, Grant, GrantPersonnel
 from flask_login import current_user
 from db_utils import get_db_session
 import pandas as pd
+import plotly.graph_objects as go
 
 # Register the page
 dash.register_page(__name__, path='/profile')
@@ -113,6 +102,9 @@ def populate_profile(_):
 
     # --- Bar Chart: Grant Counts by Agency ---
     df_grants = pd.DataFrame(grant_data)
+    counts_series = df_grants['agency'].value_counts()
+    counts_df = counts_series.rename_axis('agency').reset_index(name='count')
+    print(df_grants)
     fig_bar = px.bar(df_grants, x='agency', color='agency', 
                      title='Grants by Funding Agency',
                      labels={'agency': 'Agency', 'count': 'Grants'})

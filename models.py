@@ -151,3 +151,106 @@ class ExpenseSubcategory(db.Model):
 
     def __repr__(self):
         return f'<ExpenseSubcategory {self.name} (Category ID: {self.category_id})>'
+
+
+
+
+
+
+
+
+
+
+############################################
+# Perosneels table
+############################################
+# PI Table
+class PI(db.Model):
+    __tablename__ = 'pi_table'
+
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=False, unique=True)
+    position = db.Column(db.String(100), nullable=False)
+    expected_hourly_salary = db.Column(db.DECIMAL(10, 2), nullable=False)
+
+    def __repr__(self):
+        return f"<PI Name: {self.full_name}, Email: {self.email}, Position: {self.position}, Hourly Salary: ${self.expected_hourly_salary}>"
+
+# Co-PI Table
+class CoPI(db.Model):
+    __tablename__ = 'copi_table'
+
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=False, unique=True)
+    position = db.Column(db.String(100), nullable=False)
+    expected_hourly_salary = db.Column(db.DECIMAL(10, 2), nullable=False)
+
+    def __repr__(self):
+        return f"<CoPI Name: {self.full_name}, Email: {self.email}, Position: {self.position}, Hourly Salary: ${self.expected_hourly_salary}>"
+
+# Professional Staff Table
+class ProfessionalStaff(db.Model):
+    __tablename__ = 'professionalstaff_table'
+
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=False, unique=True)
+    position = db.Column(db.String(100), nullable=False)
+    expected_hourly_salary = db.Column(db.DECIMAL(10, 2), nullable=False)
+
+    def __repr__(self):
+        return f"<ProfessionalStaff Name: {self.full_name}, Email: {self.email}, Position: {self.position}, Hourly Salary: ${self.expected_hourly_salary}>"
+
+# Postdoc Table
+class Postdoc(db.Model):
+    __tablename__ = 'postdoc_table'
+
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=False, unique=True)
+    position = db.Column(db.String(100), nullable=False)
+    expected_hourly_salary = db.Column(db.DECIMAL(10, 2), nullable=False)
+
+    def __repr__(self):
+        return f"<Postdoc Name: {self.full_name}, Email: {self.email}, Position: {self.position}, Hourly Salary: ${self.expected_hourly_salary}>"
+
+# GRA Table
+class GRA(db.Model):
+    __tablename__ = 'gra_table'
+
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=False, unique=True)
+    position = db.Column(db.String(100), nullable=False)
+    expected_hourly_salary = db.Column(db.DECIMAL(10, 2), nullable=False)
+
+    def __repr__(self):
+        return f"<GRA Name: {self.full_name}, Email: {self.email}, Position: {self.position}, Hourly Salary: ${self.expected_hourly_salary}>"
+
+# Temp Help Table
+class TempHelp(db.Model):
+    __tablename__ = 'temphelp_table'
+
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=False, unique=True)
+    position = db.Column(db.String(100), nullable=False)
+    expected_hourly_salary = db.Column(db.DECIMAL(10, 2), nullable=False)
+
+    def __repr__(self):
+        return f"<TempHelp Name: {self.full_name}, Email: {self.email}, Position: {self.position}, Hourly Salary: ${self.expected_hourly_salary}>"
+
+# Undergrad Table
+class Undergrad(db.Model):
+    __tablename__ = 'undergrad_table'
+
+    id = db.Column(db.Integer, primary_key=True)
+    full_name = db.Column(db.String(100), nullable=False)
+    email = db.Column(db.String(100), nullable=False, unique=True)
+    position = db.Column(db.String(100), nullable=False)
+    expected_hourly_salary = db.Column(db.DECIMAL(10, 2), nullable=False)
+
+    def __repr__(self):
+        return f"<Undergrad Name: {self.full_name}, Email: {self.email}, Position: {self.position}, Hourly Salary: ${self.expected_hourly_salary}>"

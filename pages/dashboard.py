@@ -1,5 +1,6 @@
 import dash
-from dash import html, dcc, Input, Output, State, callback, ALL, MATCH
+from dash import html, dcc, Input, Output, State, callback, ALL, MATCH, ctx
+from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 import pandas as pd
 from models import Grant, User
@@ -15,6 +16,10 @@ dash.register_page(__name__, path='/dashboard')
 # Define the layout
 def layout():
     return html.Div([
+        dcc.Store(id="selected-grant-id"),
+        dcc.Location(id="redirect-location", refresh=True),
+
+
         html.H3('Available Budgets', className="text-center mt-4 mb-4", style={"color": "#2c3e50"}),
 
         dbc.Container([
@@ -196,3 +201,28 @@ def download_excel(n_clicks):
 
     finally:
         session.close()
+
+
+
+
+# callack for the editing the grants
+@callback(
+    Output("selected-grant-id", "data"),
+    Input({'type': 'edit-btn', 'index': ALL}, 'n_clicks'),
+    prevent_initial_call=True
+)
+def store_edit_id(n_clicks_list):
+    if not any(n_clicks_list):
+        raise PreventUpdate
+    triggered_id = ctx.triggered_id
+    return triggered_id["index"]
+
+@callback(
+    Output("redirect-location", "href"),
+    Input("selected-grant-id", "data"),
+    prevent_initial_call=True
+)
+def redirect_to_edit_page(grant_id):
+    if grant_id:
+        return f"/home/generate-grants?edit_id={grant_id}"
+    raise PreventUpdate
