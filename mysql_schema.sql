@@ -218,11 +218,9 @@ CREATE TABLE grants_personnel (
     FOREIGN KEY (grant_id) REFERENCES grants(id) ON DELETE CASCADE
 );
 
--- Recreate grants_travel table with NULLs allowed and default values
--- Drop the existing grants_travel table if needed
--- DROP TABLE IF EXISTS grants_travel;
 
--- Recreate with the amount column
+
+-- Grants Travel table
 CREATE TABLE grants_travel (
     id INT AUTO_INCREMENT PRIMARY KEY,
     grant_id INT NOT NULL,
@@ -385,3 +383,26 @@ INSERT INTO undergrad_table (full_name, email, position, expected_hourly_salary)
 ('Frankie Simmons', 'frankie.simmons@college.edu', 'Undergrad', 7.26),
 ('Gina Cho', 'gina.cho@medcenter.org', 'Undergrad', 7.07),
 ('Henry Blake', 'henry.blake@sciencehub.org', 'Undergrad', 7.36);
+
+
+
+
+
+/* travel itenary */
+-- one row per “travel” (domestic or international) in a separate itinerary table
+CREATE TABLE IF NOT EXISTS travel_itineraries (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  travel_id INT NOT NULL,  -- ← FK to grants_travel.id
+  departure_date DATE      NULL,
+  arrival_date   DATE      NULL,
+  flight_cost    DECIMAL(10,2) NULL,
+  days_stay            INT       NULL,
+  per_day_food_lodging DECIMAL(10,2) NULL,
+  per_day_transportation DECIMAL(10,2) NULL,
+  
+  UNIQUE KEY uq_travel (travel_id),
+
+  FOREIGN KEY (travel_id)
+    REFERENCES grants_travel(id)
+    ON DELETE CASCADE
+);

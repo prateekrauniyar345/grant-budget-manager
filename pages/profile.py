@@ -101,13 +101,32 @@ def populate_profile(_):
     ], bordered=True, hover=True, responsive=True, striped=True, className="shadow")
 
     # --- Bar Chart: Grant Counts by Agency ---
-    df_grants = pd.DataFrame(grant_data)
-    counts_series = df_grants['agency'].value_counts()
-    counts_df = counts_series.rename_axis('agency').reset_index(name='count')
-    print(df_grants)
-    fig_bar = px.bar(df_grants, x='agency', color='agency', 
-                     title='Grants by Funding Agency',
-                     labels={'agency': 'Agency', 'count': 'Grants'})
+    # --- Bar Chart: Grant Counts by Agency ---
+    df_grants = pd.DataFrame(grant_data, index=None)
+    df_counts = df_grants['agency'].value_counts().reset_index()
+    df_counts.columns = ['agency', 'counts']
+    print(df_counts)
+    print(df_grants) 
+    print("agency is : \n", df_counts["agency"])
+    print("counts is : \n",df_counts["counts"])
+    # Create the bar chart
+    fig_bar = go.Figure(data=[
+        go.Bar(
+            name='Agency Counts',
+            x=df_counts['agency'].tolist(),  # Funding agencies
+            y=df_counts['counts'].tolist(),  # Corresponding counts
+            text=df_counts['counts'],  # Display counts on top of bars
+            textposition='auto'  # Automatically position text labels
+        )
+    ])
+
+    # Update layout
+    fig_bar.update_layout(
+        title='Grants by Funding Agency',
+        xaxis_title='Funding Agency',
+        yaxis_title='Counts',
+        showlegend=False  # Optional: Hide legend if not needed
+    )
 
     # --- Pie Chart: Personnel Distribution ---
     df_pie = pd.DataFrame({

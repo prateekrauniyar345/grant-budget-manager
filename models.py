@@ -89,13 +89,22 @@ class GrantPersonnel(db.Model):
 class GrantTravel(db.Model):
     __tablename__ = 'grants_travel'
 
-    id = db.Column(Integer, primary_key=True)
-    grant_id = db.Column(Integer, db.ForeignKey('grants.id'), nullable=False)
-    travel_type = db.Column(Enum('Domestic', 'International'), nullable=True, default=None)
-    name = db.Column(String(255), nullable=True, default=None)
-    description = db.Column(Text, nullable=True, default=None)
-    year = db.Column(Integer, nullable=True, default=None)
-    amount = db.Column(DECIMAL(10, 2), nullable=True, default=None)
+    id          = db.Column(db.Integer, primary_key=True)
+    grant_id    = db.Column(db.Integer, db.ForeignKey('grants.id'), nullable=False)
+    travel_type = db.Column(db.Enum('Domestic','International'), nullable=True, default=None)
+    name        = db.Column(db.String(255), nullable=True, default=None)
+    description = db.Column(db.Text,     nullable=True, default=None)
+    year        = db.Column(db.Integer,  nullable=True, default=None)
+    amount      = db.Column(db.DECIMAL(10,2), nullable=True, default=None)
+
+    # parent side of the one-to-one
+    itinerary = db.relationship(
+        'TravelItinerary',
+        uselist=False,
+        back_populates='travel',
+        cascade='all, delete-orphan',
+        single_parent=True
+    )
 
     # grant = db.relationship('Grant', backref=db.backref('travels', lazy=True))
 
@@ -254,3 +263,36 @@ class Undergrad(db.Model):
 
     def __repr__(self):
         return f"<Undergrad Name: {self.full_name}, Email: {self.email}, Position: {self.position}, Hourly Salary: ${self.expected_hourly_salary}>"
+
+
+
+
+class TravelItinerary(db.Model):
+    __tablename__ = 'travel_itineraries'
+
+    id                       = db.Column(db.Integer, primary_key=True)
+    travel_id                = db.Column(
+        db.Integer,
+        db.ForeignKey('grants_travel.id', ondelete='CASCADE'),
+        nullable=False
+    )
+    departure_date           = db.Column(db.Date,    nullable=True)
+    arrival_date             = db.Column(db.Date,    nullable=True)
+    flight_cost              = db.Column(db.DECIMAL(10,2), nullable=True)
+    days_stay                = db.Column(db.Integer,       nullable=True)
+    per_day_food_lodging     = db.Column(db.DECIMAL(10,2), nullable=True)
+    per_day_transportation   = db.Column(db.DECIMAL(10,2), nullable=True)
+
+    # child side of the one-to-one
+    travel = db.relationship(
+        'GrantTravel',
+        back_populates='itinerary'
+    )
+
+    def __repr__(self):
+        return (
+            f"<TravelItinerary id={self.id} travel_id={self.travel_id} "
+            f"depart={self.departure_date} arrive={self.arrival_date} "
+            f"flight=${self.flight_cost} transport=${self.transportation_cost} "
+            f"food_lodge=${self.food_lodging_cost} days={self.days_stay}>"
+        )

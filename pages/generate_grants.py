@@ -8,7 +8,7 @@ from flask_login import current_user
 from dateutil.relativedelta import relativedelta
 from dash import MATCH, ALL, ctx
 from dash.exceptions import PreventUpdate
-from models import Grant, GrantPersonnel, GrantTravel, GrantMaterial, ExpenseSubcategory, PI, CoPI, ProfessionalStaff, Postdoc, GRA, Undergrad, TempHelp
+from models import Grant, GrantPersonnel, GrantTravel,TravelItinerary, GrantMaterial, ExpenseSubcategory, PI, CoPI, ProfessionalStaff, Postdoc, GRA, Undergrad, TempHelp
 from db_utils import get_db_session
 from datetime import date
 import urllib.parse
@@ -201,8 +201,6 @@ container = html.Div(
             html.Hr(),
             dbc.Row([
                 html.Div(id='personnel-section'),
-                # dcc.Store(id='personnel-store', data=[0]),
-
                 html.Div(
                     children=[
                         dbc.Button(
@@ -388,6 +386,8 @@ def layout(**query_params):
         # html.Div(id="debug-fields", style={"color": "red"}),
         html.Div(id="form-mounted-flag", style={}),
 
+        html.Div(id='dummy-output', style={}),
+
 
 
         html.H3('Generate Grants', className="text-center mt-4 mb-4", style={"color": "#2c3e50"}),
@@ -459,6 +459,15 @@ def submit_grant(n_clicks,
                     return False, True
 
                 # update fields...
+                # ── UPDATE THE GRANT FIELDS ──
+                g.title           = title
+                g.funding_agency  = agency
+                g.duration        = duration
+                g.start_date      = start_date
+                g.end_date        = end_date
+                g.status          = status
+                g.description     = normalize_empty(description)
+
                 grant_id = g.id
 
                 # clear old related rows
@@ -502,31 +511,57 @@ def submit_grant(n_clicks,
                                 estimated_hours=hrs
                             ))
 
-            # ── DOMESTIC TRAVEL ──
-            for item in (dom_tr or {}).values():
-                yr = normalize_empty(item.get('year'))
-                if item.get('name') or yr:
-                    session.add(GrantTravel(
+            # ── DOMESTIC TRAVEL + ITINERARY ──
+            for key, item in (dom_tr or {}).items():
+                # only add if user filled name or year
+                if item.get('name') or item.get('year'):
+                    # 1) create the GrantTravel
+                    travel = GrantTravel(
                         grant_id=grant_id,
                         travel_type='Domestic',
                         name=item.get('name'),
                         description=normalize_empty(item.get('desc')),
-                        amount=normalize_empty(item.get('amount')),
-                        year=yr
-                    ))
+                        year=normalize_empty(item.get('year'))
+                    )
+                    session.add(travel)
+                    session.flush()  # so travel.id is set
+                    print("depature date is : ", item.get('departure_date'))
+                    print("arrival date is : ", item.get('arrival_date'))
+                    # 2) then create the matching TravelItinerary
+                    itin = TravelItinerary(
+                        travel_id=travel.id,
+                        departure_date        = normalize_empty(item.get('departure_date')),
+                        arrival_date          = normalize_empty(item.get('arrival_date')),
+                        flight_cost           = normalize_empty(item.get('flight_cost')),
+                        days_stay             = normalize_empty(item.get('days_stay')),
+                        per_day_food_lodging  = normalize_empty(item.get('food_lodging_cost')),
+                        per_day_transportation= normalize_empty(item.get('transportation_cost'))
+                    )
+                    session.add(itin)
 
-            # ── INTERNATIONAL TRAVEL ──
-            for item in (int_tr or {}).values():
-                yr = normalize_empty(item.get('year'))
-                if item.get('name') or yr:
-                    session.add(GrantTravel(
+            # ── INTERNATIONAL TRAVEL + ITINERARY ──
+            for key, item in (int_tr or {}).items():
+                if item.get('name') or item.get('year'):
+                    travel = GrantTravel(
                         grant_id=grant_id,
                         travel_type='International',
                         name=item.get('name'),
                         description=normalize_empty(item.get('desc')),
-                        amount=normalize_empty(item.get('amount')),
-                        year=yr
-                    ))
+                        year=normalize_empty(item.get('year'))
+                    )
+                    session.add(travel)
+                    session.flush()
+
+                    itin = TravelItinerary(
+                        travel_id=travel.id,
+                        departure_date        = normalize_empty(item.get('departure_date')),
+                        arrival_date          = normalize_empty(item.get('arrival_date')),
+                        flight_cost           = normalize_empty(item.get('flight_cost')),
+                        days_stay             = normalize_empty(item.get('days_stay')),
+                        per_day_food_lodging  = normalize_empty(item.get('food_lodging_cost')),
+                        per_day_transportation= normalize_empty(item.get('transportation_cost'))
+                    )
+                    session.add(itin)
 
             # ── MATERIALS & SUPPLIES ──
             for item in (mat_data or {}).values():
@@ -600,7 +635,7 @@ def manage_personnel(add_clicks, delete_clicks, positions, names, rows):
          return rows + [{'index': new_idx, 'position': '', 'name': ''}]
 
      # ❌ Remove a row
-     if isinstance(trig, dict) and trig.get('name') == 'delete-row-option':
+     if isinstance(trig, dict) and trig.get('name') == 'delete-row-option' and any(click and click > 0 for click in delete_clicks):
          idx = trig['index']
          return [r for r in rows if r['index'] != idx]
 
@@ -705,7 +740,7 @@ def update_person_name_dropdown(position):
 )
 def render_estimated_hours(rows, duration, start_date, hours_store):
     if not rows:
-        raise PreventUpdate
+        return []
     hours_store = hours_store or {}
     duration = int(duration or 1)
 
@@ -785,7 +820,25 @@ def copy_hours_if_same(checked, year_vals):
 ############################################
 # Travel Expenses Callbacks
 ############################################
-
+@callback(
+    Output({'type':'travel-itn','scope':MATCH,'field':'days_stay','index':MATCH}, 'value'),
+    Input({'type':'travel-itn','scope':MATCH,'field':'departure_date','index':MATCH}, 'date'),
+    Input({'type':'travel-itn','scope':MATCH,'field':'arrival_date'  ,'index':MATCH}, 'date'),
+    prevent_initial_call=True
+)
+def compute_days_of_stay(dep_date, arr_date):
+    # both dates come in as ISO strings or None
+    if not dep_date or not arr_date:
+        # if either is missing, clear out
+        return None
+    try:
+        d0 = date.fromisoformat(dep_date)
+        d1 = date.fromisoformat(arr_date)
+        # ensure arrival ≥ departure
+        delta = (d1 - d0).days
+        return max(delta, 0)
+    except Exception:
+        raise PreventUpdate
 
 @callback(
     Output('domestic-travel-store', 'data'),
@@ -795,19 +848,78 @@ def copy_hours_if_same(checked, year_vals):
     prevent_initial_call=True
 )
 def update_domestic_travel(add_clicks, delete_clicks, current_data):
+    # print("initial value of domestic travel store: ", current_data)
     triggered = ctx.triggered_id
+    # print("triggered is: ", triggered)    
     data = current_data or [0]
+    # print("current data is: ", data)
 
-    if triggered == 'add-domestic-travel-btn':
-        new_index = max(data) + 1 if data else 1
-        return data + [new_index]
+    if triggered == 'add-domestic-travel-btn' and add_clicks>0:
+        new_idx = (max(data) if data else 0) + 1
+        # print("new index is: ", new_idx)
+        # print("data that will be returned is : ", (data + [new_idx]) )
+        return (data + [new_idx])
 
-    elif isinstance(triggered, dict) and triggered.get('name') == 'remove-row-option-domestic':
+    elif isinstance(triggered, dict) and triggered.get('name') == 'remove-row-option-domestic' and any(click and click > 0 for click in delete_clicks):
         index_to_remove = triggered.get('index')
         if len(data) > 1:
             return [i for i in data if i != index_to_remove]
+    # print("domestic travel store data in return is: ", data)
+    return dash.no_update
+# Update domestic travel + itinerary values
+@callback(
+    Output('domestic-travel-values-store', 'data', allow_duplicate=True),
+    Input({'type': 'travel-name', 'scope': 'domestic', 'index': ALL}, 'value'),
+    Input({'type': 'travel-desc', 'scope': 'domestic', 'index': ALL}, 'value'),
+    Input({'type': 'travel-year', 'scope': 'domestic', 'index': ALL}, 'value'),
+    Input({'type': 'travel-itn', 'scope': 'domestic', 'field': ALL, 'index': ALL}, 'value'),
+    Input({'type': 'travel-itn', 'scope': 'domestic', 'field': ALL, 'index': ALL}, 'date'),
+    State({'type': 'travel-name', 'scope': 'domestic', 'index': ALL}, 'id'),
+    State({'type': 'travel-itn', 'scope': 'domestic', 'field': ALL, 'index': ALL}, 'id'),
+    prevent_initial_call=True
+)
+def update_domestic_travel_values(names, descs, years, itn_vals, dates, name_ids, itn_ids):
+    data = {}
+    # print("domestic travel names are: ", names)
+    # print("domestic travel descs are: ", descs)
+    # print("domestic travel years are: ", years)
+    # print("domestic travel itn vals are: ", itn_vals)
+    # print("domestic travel dates are: ", dates)
+    # print("domestic travel name ids are: ", name_ids)
+    # print("domestic travel itn ids are: ", itn_ids)
 
+
+    # stash name/desc/year
+    for name, desc, year, id_obj in zip(names, descs, years, name_ids):
+        idx = str(id_obj['index'])
+        if not data.get(idx):
+            data[idx] = {}
+        if name:
+            data[idx]['name'] = name
+        if desc:
+            data[idx]['desc'] = desc
+        if year:
+            data[idx]['year'] = year
+
+    # stash itinerary fields
+    for val, date_val, id_obj in zip(itn_vals, dates, itn_ids):
+        idx = str(id_obj['index'])
+        field = id_obj['field']
+
+        if not data.get(idx):
+            data[idx] = {}
+
+        if field in ('departure_date', 'arrival_date'):
+            if date_val:
+                data[idx][field] = date_val
+        else:
+            if val is not None and val != '':
+                data[idx][field] = val
+
+    # print("domestic travel values are: ", data)
     return data
+
+
 
 
 @callback(
@@ -818,14 +930,17 @@ def update_domestic_travel(add_clicks, delete_clicks, current_data):
     prevent_initial_call=True
 )
 def update_international_travel(add_clicks, delete_clicks, data):
+    # print("initial value of international travel store: ", data)
     triggered = ctx.triggered_id
     data = data or [0]
+    # print("current data for international is: ", data)
 
     if triggered == 'add-international-travel-btn':
-        new_index = max(data) + 1 if data else 1
+        # new_index = max(data) + 1 if data else 1
+        new_index = max(data) + 1
         return data + [new_index]
 
-    elif isinstance(triggered, dict) and triggered.get('name') == 'remove-row-option-international':
+    elif isinstance(triggered, dict) and triggered.get('name') == 'remove-row-option-international' and any(click and click > 0 for click in delete_clicks):
         index_to_remove = triggered.get('index')
         if len(data) > 1:
             return [i for i in data if i != index_to_remove]
@@ -833,28 +948,9 @@ def update_international_travel(add_clicks, delete_clicks, data):
     return data
 
 
-# Update domestic travel values store
-@callback(
-    Output('domestic-travel-values-store', 'data', allow_duplicate=True),
-    Input({'type': 'travel-name', 'scope': 'domestic', 'index': ALL}, 'value'),
-    Input({'type': 'travel-desc', 'scope': 'domestic', 'index': ALL}, 'value'),
-    Input({'type': 'travel-amount', 'scope': 'domestic', 'index': ALL}, 'value'),
-    Input({'type': 'travel-year', 'scope': 'domestic', 'index': ALL}, 'value'),
-    State({'type': 'travel-name', 'scope': 'domestic', 'index': ALL}, 'id'),
-    prevent_initial_call=True
-)
-def update_domestic_travel_values(names, descs, amount, years, ids):
-    data = {}
-    for name, desc,amount,  year, id_obj in zip(names, descs, amount, years, ids):
-        index = id_obj['index']
-        print(f"Domestic Travel Index {index} → Year: {year}")
-        data[str(index)] = {
-            'name': name,
-            'desc': desc,
-            'amount': amount,
-            'year': year
-        }
-    return data
+
+
+
 
 
 # Update international travel values store
@@ -862,22 +958,47 @@ def update_domestic_travel_values(names, descs, amount, years, ids):
     Output('international-travel-values-store', 'data', allow_duplicate=True),
     Input({'type': 'travel-name', 'scope': 'international', 'index': ALL}, 'value'),
     Input({'type': 'travel-desc', 'scope': 'international', 'index': ALL}, 'value'),
-    Input({'type': 'travel-amount', 'scope': 'international', 'index': ALL}, 'value'),
     Input({'type': 'travel-year', 'scope': 'international', 'index': ALL}, 'value'),
+    Input({'type': 'travel-itn', 'scope': 'international', 'field': ALL, 'index': ALL}, 'value'),
+    Input({'type': 'travel-itn', 'scope': 'international', 'field': ALL, 'index': ALL}, 'date'),  # ADDED to match domestic structure
     State({'type': 'travel-name', 'scope': 'international', 'index': ALL}, 'id'),
+    State({'type': 'travel-itn', 'scope': 'international', 'field': ALL, 'index': ALL}, 'id'),
     prevent_initial_call=True
 )
-def update_international_travel_values(names, descs, amount, years, ids):
+def update_international_travel_values(names, descs, years, itn_vals, dates, name_ids, itn_ids):
     data = {}
-    for name, desc, amount, year, id_obj in zip(names, descs,amount,  years, ids):
-        index = id_obj['index']
-        data[str(index)] = {
-            'name': name,
-            'desc': desc,
-            'amount': amount,
-            'year': year
-        }
+
+    # stash name/desc/year
+    for name, desc, year, id_obj in zip(names, descs, years, name_ids):
+        idx = str(id_obj['index'])
+        if not data.get(idx):
+            data[idx] = {}
+        if name:
+            data[idx]['name'] = name
+        if desc:
+            data[idx]['desc'] = desc
+        if year:
+            data[idx]['year'] = year
+
+    # stash itinerary fields
+    for val, date_val, id_obj in zip(itn_vals, dates, itn_ids):
+        idx = str(id_obj['index'])
+        field = id_obj['field']
+
+        if not data.get(idx):
+            data[idx] = {}
+
+        if field in ('departure_date', 'arrival_date'):
+            if date_val:
+                data[idx][field] = date_val
+        else:
+            if val is not None and val != '':
+                data[idx][field] = val
+
+    # print("International travel values are: ", data)
     return data
+
+
 
 
 # Render domestic travel rows with persisted values
@@ -892,63 +1013,128 @@ def render_domestic_travels(indexes, stored_data, duration, start_date):
     duration = int(duration) if duration else 1
     stored_data = stored_data or {}
     rows = []
-
     try:
         start_date_obj = date.fromisoformat(start_date)
     except:
         raise PreventUpdate
-
     year_options = [
-        {"label": f"Year {i + 1} ({(start_date_obj + relativedelta(years=i)).year})",
-         "value": (start_date_obj + relativedelta(years=i)).year}
+        {
+            "label": f"Year {i+1} ({(start_date_obj + relativedelta(years=i)).year})",
+            "value": (start_date_obj + relativedelta(years=i)).year
+        }
         for i in range(duration)
     ]
-
     for i in indexes:
         val = stored_data.get(str(i), {})
         rows.append(
-            dbc.Row([
-                dbc.Col(dbc.Input(
-                    id={"type": "travel-name", "scope": "domestic", "index": i},
-                    placeholder="Travel Name",
-                    value=val.get('name', "")
-                ), width=3),
-                dbc.Col(dbc.Textarea(
-                    id={"type": "travel-desc", "scope": "domestic", "index": i},
-                    placeholder="Description",
-                    value=val.get('desc', ""),
-                    style={"height": "38px"}
-                ), width=4),
-                dbc.Col(dbc.Input(
-                    id={"type": "travel-amount", "scope": "domestic", "index": i},
-                    type="number",
-                    placeholder="Amount",
-                    value=val.get('amount', ""),
-                ), width=2),
-                dbc.Col(dbc.Select(
-                    id={"type": "travel-year", "scope": "domestic", "index": i},
-                    options=year_options,
-                    value=val.get('year', None),
-                    placeholder="Select Year"
-                ), width=2),
-                dbc.Col(
-                        children=[
-                            # dbc.Label("Remove", className="mb-1"),
-                            dbc.Button(
-                                "❌",
-                                id={"type": "travel-year", "name": "remove-row-option-domestic", "index": i},
-                                color="danger",
-                                size="sm",
-                                className="bg-light mt-1",  # adds space between label and button
-                                disabled=False
-                            ),
-                        ],
-                        width=1,
-                        className="d-flex flex-column align-items-center"
+            html.Div(children=[
+                # — first line: name / desc / year / depart / arrive / ❌
+                dbc.Row([
+                    dbc.Col(
+                        dbc.Input(
+                            id={"type": "travel-name", "scope": "domestic", "index": i},
+                            placeholder="Travel Name",
+                            value=val.get('name', "")
+                        ),
+                        width=2
                     ),
-            ], className="mb-3")
+                    dbc.Col(
+                        dbc.Textarea(
+                            id={"type": "travel-desc", "scope": "domestic", "index": i},
+                            placeholder="Description",
+                            value=val.get('desc', ""),
+                            style={"height": "38px"}
+                        ),
+                        width=3
+                    ),
+                    dbc.Col(
+                        dbc.Select(
+                            id={"type": "travel-year", "scope": "domestic", "index": i},
+                            options=year_options,
+                            value=val.get('year', None),
+                            placeholder="Select Year"
+                        ),
+                        width=2
+                    ),
+                    dbc.Col(
+                        dcc.DatePickerSingle(
+                            id={'type':'travel-itn','scope':'domestic','field':'departure_date','index':i},
+                            min_date_allowed=date.today(),
+                            max_date_allowed=date.today() + relativedelta(years=+duration),
+                            placeholder='Depart', 
+                            date=val.get('departure_date')
+                        ),
+                        width=2
+                    ),
+                    dbc.Col(
+                        dcc.DatePickerSingle(
+                            id={'type':'travel-itn','scope':'domestic','field':'arrival_date','index':i},
+                            min_date_allowed=date.today(),
+                            max_date_allowed=date.today() + relativedelta(years=+duration),
+                            placeholder='Arrive', 
+                            date=val.get('arrival_date')
+                        ),
+                        width=2
+                    ),
+                    dbc.Col(
+                        dbc.Button(
+                            "❌",
+                            id={"type": "travel-year", "name": "remove-row-option-domestic", "index": i},
+                            color="danger", size="sm", className="bg-light mt-1",
+                        ),
+                        width=1,
+                        className="d-flex align-items-center justify-content-center"
+                    ),
+                ], className="mb-2 px-0 align-items-center"),
+
+                # — section heading —
+                html.Div(
+                    html.U("Transportation, Food & Lodging Details"),
+                    className="text-muted text-center mb-1"
+                ),
+
+                # — second line: flight / taxi / food_lodging / days —
+                dbc.Row([
+                    dbc.Col(
+                        dbc.Input(
+                            id={'type':'travel-itn','scope':'domestic','field':'flight_cost','index':i},
+                            type='number', placeholder='Flight $', 
+                            value=val.get('flight_cost')
+                        ),
+                        width=3
+                    ),
+                    dbc.Col(
+                        dbc.Input(
+                            id={'type':'travel-itn','scope':'domestic','field':'transportation_cost','index':i},
+                            type='number', placeholder='Taxi/Uber $/day', 
+                            value=val.get('transportation_cost')
+                        ),
+                        width=3
+                    ),
+                    dbc.Col(
+                        dbc.Input(
+                            id={'type':'travel-itn','scope':'domestic','field':'food_lodging_cost','index':i},
+                            type='number', placeholder='Food & Lodge $/day', 
+                            value=val.get('food_lodging_cost')
+                        ),
+                        width=4
+                    ),
+                    dbc.Col(
+                        dbc.Input(
+                            id={'type':'travel-itn','scope':'domestic','field':'days_stay','index':i},
+                            value=val.get('days_stay'),
+                            type='number', placeholder='Days',
+                            disabled=True,
+
+                        ),
+                        width=2
+                    ),
+                ], className="mb-3 px-0 align-items-center"),
+                html.Br(),
+            ])
         )
     return rows
+
 
 
 # Render international travel rows with persisted values
@@ -970,56 +1156,127 @@ def render_international_travels(indexes, stored_data, duration, start_date):
         raise PreventUpdate
 
     year_options = [
-        {"label": f"Year {i + 1} ({(start_date_obj + relativedelta(years=i)).year})",
-         "value": (start_date_obj + relativedelta(years=i)).year}
+        {
+            "label": f"Year {i+1} ({(start_date_obj + relativedelta(years=i)).year})",
+            "value": (start_date_obj + relativedelta(years=i)).year
+        }
         for i in range(duration)
     ]
 
     for i in indexes:
         val = stored_data.get(str(i), {})
+
         rows.append(
-            dbc.Row([
-                dbc.Col(dbc.Input(
-                    id={"type": "travel-name", "scope": "international", "index": i},
-                    placeholder="Travel Name",
-                    value=val.get('name', "")
-                ), width=3),
-                dbc.Col(dbc.Textarea(
-                    id={"type": "travel-desc", "scope": "international", "index": i},
-                    placeholder="Description",
-                    value=val.get('desc', ""),
-                    style={"height": "38px"}
-                ), width=4),
-                dbc.Col(dbc.Input(
-                    id={"type": "travel-amount", "scope": "international", "index": i},
-                    type="number",
-                    placeholder="Amount",
-                    value=val.get('amount', ""),
-                ), width=2),
-                dbc.Col(dbc.Select(
-                    id={"type": "travel-year", "scope": "international", "index": i},
-                    options=year_options,
-                    value=val.get('year', None),
-                    placeholder="Select Year"
-                ), width=2),
-                dbc.Col(
-                        children=[
-                            # dbc.Label("Remove", className="mb-1"),
-                            dbc.Button(
-                                "❌",
-                                id={"type": "travel-year", "name": "remove-row-option-international", "index": i},
-                                color="danger",
-                                size="sm",
-                                className="bg-light mt-1",  # adds space between label and button
-                                disabled=False
-                            ),
-                        ],
-                        width=1,
-                        className="d-flex flex-column align-items-center"
+            html.Div(children=[
+                # — first line: name / desc / year / depart / arrive / ❌
+                dbc.Row([
+                    dbc.Col(
+                        dbc.Input(
+                            id={"type": "travel-name", "scope": "international", "index": i},
+                            placeholder="Travel Name",
+                            value=val.get('name', "")
+                        ),
+                        width=2
                     ),
-            ], className="mb-3")
+                    dbc.Col(
+                        dbc.Textarea(
+                            id={"type": "travel-desc", "scope": "international", "index": i},
+                            placeholder="Description",
+                            value=val.get('desc', ""),
+                            style={"height": "38px"}
+                        ),
+                        width=3
+                    ),
+                    dbc.Col(
+                        dbc.Select(
+                            id={"type": "travel-year", "scope": "international", "index": i},
+                            options=year_options,
+                            value=val.get('year', None),
+                            placeholder="Select Year"
+                        ),
+                        width=2
+                    ),
+                    dbc.Col(
+                        dcc.DatePickerSingle(
+                            id={'type':'travel-itn','scope':'international','field':'departure_date','index':i},
+                            min_date_allowed=date.today(),
+                            max_date_allowed=date.today() + relativedelta(years=+duration),
+                            placeholder='Depart', 
+                            date=val.get('departure_date')
+                        ),
+                        width=2
+                    ),
+                    dbc.Col(
+                        dcc.DatePickerSingle(
+                            id={'type':'travel-itn','scope':'international','field':'arrival_date','index':i},
+                            min_date_allowed=date.today(),
+                            max_date_allowed=date.today() + relativedelta(years=+duration),
+                            placeholder='Arrive', 
+                            date=val.get('arrival_date')
+                        ),
+                        width=2
+                    ),
+                    dbc.Col(
+                        dbc.Button(
+                            "❌",
+                            id={"type": "travel-year", "name": "remove-row-option-international", "index": i},
+                            color="danger", size="sm",className="bg-light mt-1",
+                        ),
+                        width=1,
+                        className="d-flex align-items-center justify-content-center"
+                    ),
+                ], className="mb-2 px-0 align-items-center"),
+
+                # — section heading —
+                html.Div(
+                    html.U("Transportation, Food & Lodging Details"),
+                    className="text-muted text-center mb-1"
+                ),
+
+                # — second line: flight / taxi / food_lodging / days —
+                dbc.Row([
+                    dbc.Col(
+                        dbc.Input(
+                            id={'type':'travel-itn','scope':'international','field':'flight_cost','index':i},
+                            type='number', placeholder='Flight $', 
+                            value=val.get('flight_cost')
+                        ),
+                        width=3
+                    ),
+                    dbc.Col(
+                        dbc.Input(
+                            id={'type':'travel-itn','scope':'international','field':'transportation_cost','index':i},
+                            type='number', placeholder='Taxi/Uber $/day', 
+                            value=val.get('transportation_cost')
+                        ),
+                        width=3
+                    ),
+                    dbc.Col(
+                        dbc.Input(
+                            id={'type':'travel-itn','scope':'international','field':'food_lodging_cost','index':i},
+                            type='number', placeholder='Food & Lodge $/day', 
+                            value=val.get('food_lodging_cost')
+                        ),
+                        width=4
+                    ),
+                    dbc.Col(
+                        dbc.Input(
+                            id={'type':'travel-itn','scope':'international','field':'days_stay','index':i},
+                            value=val.get('days_stay'),
+                            type='number', placeholder='Days',
+                            disabled=True,
+                        ),
+                        width=2
+                    ),
+                ], 
+                className="mb-3 px-0 align-items-center") 
+                ,
+                html.Br(),
+            ],)
         )
+
     return rows
+
 
 
 
@@ -1044,7 +1301,7 @@ def update_materials(add_clicks, delete_clicks, data):
         new_index = max(data) + 1 if data else 1
         return data + [new_index]
 
-    elif isinstance(triggered, dict) and triggered.get('name') == 'remove-row-option':
+    elif isinstance(triggered, dict) and triggered.get('name') == 'remove-row-option' and any(click and click > 0 for click in delete_clicks):
         index_to_remove = triggered['index']
         if len(data) > 1:
             return [i for i in data if i != index_to_remove]
@@ -1255,35 +1512,54 @@ def load_all_grant_fields(_, grant_id):
 
         # ─── DOMESTIC TRAVEL ───
         dom_rows = session.query(GrantTravel)\
-                          .filter_by(grant_id=grant_id,
-                                     travel_type='Domestic')\
-                          .all()
+                            .filter_by(grant_id=grant_id,
+                                        travel_type='Domestic')\
+                            .all()
         dom_indices = [i+1 for i in range(len(dom_rows))]
-        dom_data = {
-            str(i+1): {
-                "name":   t.name,
-                "desc":   t.description,
-                "amount": t.amount,
-                "year":   t.year
+        dom_data = {}
+        for idx, t in enumerate(dom_rows, start=1):
+            entry = {
+                "name": t.name,
+                "desc": t.description,
+                "year": t.year,
             }
-            for i, t in enumerate(dom_rows)
-        }
+            # if there’s an itinerary record, unpack its fields
+            if getattr(t, "itinerary", None):
+                it = t.itinerary
+                entry.update({
+                    "departure_date": it.departure_date.isoformat() if it.departure_date else None,
+                    "arrival_date":   it.arrival_date.isoformat()   if it.arrival_date   else None,
+                    "flight_cost":    float(it.flight_cost)         if it.flight_cost    is not None else None,
+                    "transportation_cost": float(it.per_day_transportation) if it.per_day_transportation is not None else None,
+                    "food_lodging_cost":   float(it.per_day_food_lodging)   if it.per_day_food_lodging   is not None else None,
+                    "days_stay":      it.days_stay,
+                })
+            dom_data[str(idx)] = entry
 
         # ─── INTERNATIONAL TRAVEL ───
         intl_rows = session.query(GrantTravel)\
-                           .filter_by(grant_id=grant_id,
-                                      travel_type='International')\
-                           .all()
+                            .filter_by(grant_id=grant_id,
+                                        travel_type='International')\
+                            .all()
         int_indices = [i+1 for i in range(len(intl_rows))]
-        int_data = {
-            str(i+1): {
-                "name":   t.name,
-                "desc":   t.description,
-                "amount": t.amount,
-                "year":   t.year
+        int_data = {}
+        for idx, t in enumerate(intl_rows, start=1):
+            entry = {
+                "name": t.name,
+                "desc": t.description,
+                "year": t.year,
             }
-            for i, t in enumerate(intl_rows)
-        }
+            if getattr(t, "itinerary", None):
+                it = t.itinerary
+                entry.update({
+                    "departure_date": it.departure_date.isoformat() if it.departure_date else None,
+                    "arrival_date":   it.arrival_date.isoformat()   if it.arrival_date   else None,
+                    "flight_cost":    float(it.flight_cost)         if it.flight_cost    is not None else None,
+                    "transportation_cost": float(it.per_day_transportation) if it.per_day_transportation is not None else None,
+                    "food_lodging_cost":   float(it.per_day_food_lodging)   if it.per_day_food_lodging   is not None else None,
+                    "days_stay":      it.days_stay,
+                })
+            int_data[str(idx)] = entry
 
         # ─── MATERIALS & SUPPLIES ───
         mat_rows = session.query(GrantMaterial)\
@@ -1310,6 +1586,8 @@ def load_all_grant_fields(_, grant_id):
                      .isoformat() if grant.end_date is None else grant.end_date.isoformat()
         desc    = normalize_empty(grant.description)
 
+        print("personnel rows are: ", personnel_rows)
+        print("hours data is: ", hours_data)
         return (
             # personnel + hours
             personnel_rows, hours_data,
@@ -1349,3 +1627,26 @@ def show_debug_data(data):
     return f"Edit grant ID: {data}"
 
 
+
+@dash.callback(
+    Output('dummy-output', 'children'),
+    Input('domestic-travel-store', 'data'),
+    Input('international-travel-store', 'data'),
+    Input("personnel-store", "data"),
+    Input("hours-store", "data"),
+    prevent_initial_call=True
+)
+def log_store_changes(domestic_travel, international_travel, personnel_data, hours_data):
+    ctx = dash.callback_context
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+
+    if trigger_id == 'domestic-travel-store':
+        print("🚨 Domestic travel store updated:", domestic_travel)
+    elif trigger_id == 'international-travel-store':
+        print("🌐 International travel store updated:", international_travel)
+    elif trigger_id == 'personnel-store':
+        print("👤 Personnel store updated:", personnel_data)
+    elif trigger_id == 'hours-store':
+        print("⏰ Hours store updated:", hours_data)
+
+    return dash.no_update

@@ -9,6 +9,11 @@ from flask_login import current_user
 import io
 import base64
 from datetime import datetime
+from sqlalchemy import distinct
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from models import Grant, GrantPersonnel, GrantTravel,TravelItinerary, GrantMaterial, ExpenseSubcategory, PI, CoPI, ProfessionalStaff, Postdoc, GRA, Undergrad, TempHelp
+
 
 # Register the page
 dash.register_page(__name__, path='/dashboard')
@@ -155,53 +160,159 @@ def delete_grant(n_clicks_list):
         session.close()
 
 
-# Callback to handle Excel download
+
+
 @callback(
     Output("download-excel", "data"),
-    Input("download-btn", "n_clicks"),
+    Input({'type': 'download-excel-btn', 'index': ALL}, "n_clicks"),
     prevent_initial_call=True
 )
-def download_excel(n_clicks):
-    # Get the database session
-    session = get_db_session()
+def download_excel(n_clicks_list):
+    if not any(n_clicks_list):
+        raise PreventUpdate
+
+    triggered = ctx.triggered_id
+    if not triggered:
+        raise PreventUpdate
 
     try:
-        # Ensure the current user is logged in
+        grant_id = triggered['index']
+        session = get_db_session()
+
         if not current_user.is_authenticated:
-            return None
+            raise PreventUpdate
 
-        # Fetch the grants created by the current user
-        grants = session.query(Grant).filter(Grant.user_id == current_user.id).all()
+        grant = session.query(Grant).get(grant_id)
+        if not grant or grant.user_id != current_user.id:
+            raise PreventUpdate
 
-        # Prepare data for the Excel file
-        grants_data = []
-        for grant in grants:
-            grants_data.append({
-                'Grant Name': grant.title,
-                'Date Created': grant.created_at.strftime('%Y-%m-%d'),
-                'Funding Agency': grant.funding_agency,
-                'Start Date': grant.start_date.strftime('%Y-%m-%d'),
-                'End Date': grant.end_date.strftime('%Y-%m-%d'),
-            })
+        # Create Workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Grant Budget"
+        # set the row height
+        for i in range(1, 101):
+            ws.row_dimensions[i].height = 20
+        # Set font size to 12 for all written cells
+        for row in ws.iter_rows():
+            for cell in row:
+                if cell.value:  # Only set font for non-empty cells
+                    cell.font = Font(size=12)
+                    cell.alignment = Alignment(horizontal='center', vertical='center')
 
-        # Convert to DataFrame
-        df = pd.DataFrame(grants_data)
+        bold = Font(bold=True)
+        yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+        ######################################
+        # Section 1: Grant Information
+        ######################################
+        # Row 1
+        ws["A1"] = "Title:"
+        ws["A1"].font = bold
+        ws["B1"] = grant.title or ""
+        ws["J1"] = "PI FTE"
+        ws["J1"].font = bold
+        ws["J1"].fill = yellow_fill
+        ws["K1"] = 0.00
+        ws["K1"].fill = yellow_fill
 
-        # Save to Excel in memory
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name='Grants')
-        buffer.seek(0)
+        # Merge B1:I1
+        ws.merge_cells('B1:I1')
+        # Merge B2:I2
+        ws.merge_cells('B2:I2')
+        # merge from B3:I3
+        ws.merge_cells('B3:I3')
 
-        # Return the Excel file for download
-        return dcc.send_bytes(buffer.getvalue(), filename="grants.xlsx")
+        # Row 2
+        ws["A2"] = "Funding source:"
+        ws["A2"].font = bold
+        ws["B2"] = grant.funding_agency or ""
+
+        # --- Get PI ---
+        # There should only be ONE PI normally, so just use a simple query without distinct
+        pi_obj = session.query(GrantPersonnel).filter_by(grant_id=grant.id, position="PI").first()
+        pi_name = pi_obj.name if pi_obj else "N/A"
+
+        # --- Get unique CoPIs ---
+        copi_names = session.query(distinct(GrantPersonnel.name)) \
+            .filter_by(grant_id=grant.id, position="Co-PI") \
+            .all()
+
+        # Flatten tuple result
+        copi_names_list = [name[0] for name in copi_names]
+        CoPIs_names = ", ".join(copi_names_list) if copi_names_list else "N/A"
+
+        ws["A3"] = f"PIs: {pi_name}"
+        ws["A3"].font = bold
+        ws["B3"] = f"CoPIs: {CoPIs_names}"
+        ws["B3"].font = bold
+        ws["C3"].font = bold
+
+    
+
+        # Row 4
+        ws["A4"] = "Project Start and End Dates:"
+        ws["A4"].font = bold
+        if grant.start_date and grant.end_date:
+            ws["B4"] = f"{grant.start_date.strftime('%Y-%m-%d')}  -  {grant.end_date.strftime('%Y-%m-%d')}"
+
+        # Adjust column widths
+        ws.column_dimensions["A"].width = 39
+        ws.column_dimensions["B"].width = 10
+        ws.column_dimensions["C"].width = 15
+        ws.column_dimensions["J"].width = 32.5
+        for col in range(4, 9):  # D to I
+            ws.column_dimensions[chr(64+col)].width = 18
+
+
+
+        ######################################
+        # Section 2: Personnel Compensation
+        ######################################
+        ws.column_dimensions['C'].width = 11
+        ws.column_dimensions['D'].width = 11
+        ws.column_dimensions['E'].width = 11
+        ws.column_dimensions['F'].width = 11
+        ws.column_dimensions['G'].width = 11
+        ws.column_dimensions['H'].width = 11
+        ws.column_dimensions['I'].width = 11
+        # Define a thin black border
+        thin_border = Border(
+            top=Side(style='thin', color='000000'),
+            bottom=Side(style='thin', color='000000')
+        )
+        # Apply the border to all cells in Row 5 (C5, D5, E5, etc.)
+        for i in range(1, 11):  
+            cell = ws.cell(row=5, column=i)
+            cell.border = thin_border
+        header = ["Hourly rate at Start Date", "Y1", "Y2", "Y3", "Y4", "Y5", "Total", "Notes"]
+        ws.row_dimensions[5].height = 32
+        # Start writing from column 3 (which is Column C in Excel)
+        for i, text in enumerate(header):
+            cell = ws.cell(row=5, column=3 + i, value=text)  # 3 = column C
+            cell.font = bold
+            cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True )
+            
+
+        
+        # Save to in-memory stream
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        return dcc.send_bytes(
+            output.getvalue(),
+            filename=f"grant_{grant_id}_budget.xlsx"
+        )
 
     except Exception as err:
-        return html.Div(f"Error: {str(err)}", style={"color": "red"})
+        print(f"Error while downloading Excel: {err}")
+        raise PreventUpdate
 
     finally:
-        session.close()
-
+        try:
+            session.close()
+        except:
+            pass
 
 
 

@@ -124,6 +124,7 @@ dash_app = Dash(
     external_stylesheets=[dbc.themes.BOOTSTRAP, "/assets/custom.css"],
     url_base_pathname="/home/",
     use_pages=True,
+    suppress_callback_exceptions=True,
 )
 
 # Define the vertical navbar
@@ -199,8 +200,18 @@ navbar = dbc.Nav(
 
 # Main layout
 dash_app.layout = dbc.Container(
+    id="page-container",                     # ← top‐level now
     children=[
         dcc.Location(id="url", refresh=True),
+        # 1) Store for theme prefs (you already have this in settings page too)
+        dcc.Store(id="user-theme", storage_type="local"),
+        # 2) The theme‐swappable link tag
+        html.Link(
+            id="theme-link",
+            rel="stylesheet",
+            href=dbc.themes.BOOTSTRAP
+        ),
+
         dbc.Row(
             [
                 # Sidebar Column
@@ -252,6 +263,7 @@ dash_app.layout = dbc.Container(
                 ),
             ]
         ),
+        
     ],
     style={"min-width": "1400px"},
     fluid=True,

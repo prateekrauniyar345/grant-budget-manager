@@ -50,3 +50,74 @@ def layout():
             html.Div("More settings coming soon...", className="text-muted fst-italic mt-2 mb-5"),
         ], fluid=True)
     ])
+
+
+
+
+@callback(
+    Output("theme-link",     "href"),
+    Output("page-container",  "className"),
+    Input("user-theme",       "data"),
+    prevent_initial_call=True,
+)
+def apply_user_preferences(pref):
+    # 1) Safe‐guard defaults
+    if not isinstance(pref, dict):
+        pref = {"theme":"light","font_size":"md"}
+
+    theme     = pref.get("theme",    "light")
+    font_size = pref.get("font_size","md")
+
+    # 2) Theme URL (light vs. your dark choice)
+    theme_url = (
+        dbc.themes.BOOTSTRAP
+        if theme == "light"
+        else dbc.themes.SUPERHERO
+    )
+
+    # 3) Font‐size utility
+    fs_map    = {"sm":"fs-6","md":"fs-5","lg":"fs-4"}
+    fs_class  = fs_map.get(font_size, "fs-5")
+
+    # 4) Text color: white for any dark theme
+    text_class = "" if theme == "light" else "text-white"
+
+    # 5) Build wrapper class preserving main_body
+    classes = ["main_body", fs_class, text_class]
+    wrapper_class = " ".join(filter(None, classes))
+
+    return theme_url, wrapper_class
+
+
+
+@callback(
+    Output("user-theme", "data", allow_duplicate=True),
+    Input("theme-selector", "value"),
+    Input("font-size-selector", "value"),
+    State("user-theme", "data"),
+    prevent_initial_call=True
+)
+def save_user_preferences(theme, font_size, current_data):
+    if not isinstance(current_data, dict):
+        current_data = {}
+
+    # Only update fields that changed
+    updated = current_data.copy()
+    ctx = dash.callback_context
+    trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
+
+    if trigger_id == "theme-selector":
+        updated["theme"] = theme
+    elif trigger_id == "font-size-selector":
+        updated["font_size"] = font_size
+
+    return updated
+@callback(
+    Output("theme-selector", "value"),
+    Output("font-size-selector", "value"),
+    Input("user-theme", "data")
+)
+def load_preferences(pref):
+    if not isinstance(pref, dict):
+        pref = {"theme": "light", "font_size": "md"}
+    return pref.get("theme"), pref.get("font_size")
