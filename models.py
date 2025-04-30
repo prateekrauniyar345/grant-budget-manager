@@ -296,3 +296,93 @@ class TravelItinerary(db.Model):
             f"flight=${self.flight_cost} transport=${self.transportation_cost} "
             f"food_lodge=${self.food_lodging_cost} days={self.days_stay}>"
         )
+    
+
+
+
+# NSF Personnel Compensation Table
+class NSFPersonnelCompensation(db.Model):
+    __tablename__ = 'nsf_personnel_compensation'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    role = db.Column(db.String(100), nullable=False)
+    y2_rate_increase = db.Column(db.DECIMAL(5, 2), nullable=False)
+    y3_rate_increase = db.Column(db.DECIMAL(5, 2), nullable=False)
+    y4_rate_increase = db.Column(db.DECIMAL(5, 2), nullable=False)
+    y5_rate_increase = db.Column(db.DECIMAL(5, 2), nullable=False)
+
+    def __repr__(self):
+        return (f"<NSFPersonnelCompensation Role: {self.role}, "
+                f"Year 2 Increase: {self.y2_rate_increase}, "
+                f"Year 3 Increase: {self.y3_rate_increase}, "
+                f"Year 4 Increase: {self.y4_rate_increase}, "
+                f"Year 5 Increase: {self.y5_rate_increase}>")
+
+
+
+# NIH Personnel Compensation Table
+class NIHPersonnelCompensation(db.Model):
+    __tablename__ = 'nih_personnel_compensation'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    role = db.Column(db.String(100), nullable=False)
+    y2_rate_increase = db.Column(db.DECIMAL(5, 2), nullable=False)
+    y3_rate_increase = db.Column(db.DECIMAL(5, 2), nullable=False)
+    y4_rate_increase = db.Column(db.DECIMAL(5, 2), nullable=False)
+    y5_rate_increase = db.Column(db.DECIMAL(5, 2), nullable=False)
+
+    def __repr__(self):
+        return (f"<NIHPersonnelCompensation Role: {self.role}, "
+                f"Year 2 Increase: {self.y2_rate_increase}, "
+                f"Year 3 Increase: {self.y3_rate_increase}, "
+                f"Year 4 Increase: {self.y4_rate_increase}, "
+                f"Year 5 Increase: {self.y5_rate_increase}>")
+
+
+
+
+# NSF Fringe Rate Model
+class NSFFringeRate(db.Model):
+    __tablename__ = 'nsf_fringe_rates'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    role = db.Column(db.String(50), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    fringe_rate = db.Column(db.DECIMAL(5, 2), nullable=False)
+
+    def __repr__(self):
+        return f"<NSFFringeRate Role: {self.role}, Year: {self.year}, Rate: {self.fringe_rate}%>"
+
+
+# NIH Fringe Rate Model
+class NIHFringeRate(db.Model):
+    __tablename__ = 'nih_fringe_rates'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    role = db.Column(db.String(50), nullable=False)
+    year = db.Column(db.Integer, nullable=False)
+    fringe_rate = db.Column(db.DECIMAL(5, 2), nullable=False)
+
+    def __repr__(self):
+        return f"<NIHFringeRate Role: {self.role}, Year: {self.year}, Rate: {self.fringe_rate}%>"
+
+
+
+
+class GraduateStudentCost(db.Model):
+    __tablename__ = 'graduate_student_costs'
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    student_type = db.Column(db.String(50), nullable=False, default='PhD')
+    base_tuition_per_semester = db.Column(db.DECIMAL(10, 2), nullable=False)
+    summer_credit_cost = db.Column(db.DECIMAL(10, 2), nullable=False)
+    health_insurance_cost = db.Column(db.DECIMAL(10, 2), nullable=False)
+    num_semesters_per_year = db.Column(db.Integer, nullable=False, default=2)
+    annual_increase_percent = db.Column(db.DECIMAL(5, 2), nullable=False, default=3.00)
+    total_years = db.Column(db.Integer, nullable=False, default=3)
+
+    def __repr__(self):
+        return (f"<GraduateStudentCost Type: {self.student_type}, Tuition/Semester: {self.base_tuition_per_semester}, "
+                f"Summer Credit: {self.summer_credit_cost}, Health Insurance: {self.health_insurance_cost}, "
+                f"Semesters/Year: {self.num_semesters_per_year}, Increase: {self.annual_increase_percent}%, "
+                f"Total Years: {self.total_years}>")

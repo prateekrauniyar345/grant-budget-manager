@@ -162,27 +162,114 @@ CREATE TABLE `fringe_rates` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- Insert data into the fringe_rates table
-INSERT INTO `fringe_rates` (`role`, `year`, `fringe_rate`) VALUES
-('Faculty', 1, 30.00),
-('Faculty', 2, 30.50),
+INSERT INTO fringe_rates (role, year, fringe_rate) VALUES
+-- Faculty
+('Faculty', 1, 31.00),
+('Faculty', 2, 31.00),
 ('Faculty', 3, 31.00),
-('Faculty', 4, 31.50),
+('Faculty', 4, 31.00),
+('Faculty', 5, 31.00),
+
+-- UI professional staff & Post Docs
+('UI professional staff & Post Docs', 1, 41.30),
+('UI professional staff & Post Docs', 2, 41.30),
+('UI professional staff & Post Docs', 3, 41.30),
+('UI professional staff & Post Docs', 4, 41.30),
+('UI professional staff & Post Docs', 5, 41.30),
+
+-- GRAs/UGrads
+('GRAs/UGrads', 1, 2.50),
+('GRAs/UGrads', 2, 2.50),
+('GRAs/UGrads', 3, 2.50),
+('GRAs/UGrads', 4, 2.50),
+('GRAs/UGrads', 5, 2.50),
+
+-- Temp Help
+('Temp Help', 1, 8.30),
+('Temp Help', 2, 8.30),
+('Temp Help', 3, 8.30),
+('Temp Help', 4, 8.30),
+('Temp Help', 5, 8.30);
+
+
+
+
+
+-- NSF Fringe Rates Table
+CREATE TABLE nsf_fringe_rates (
+  id INT NOT NULL AUTO_INCREMENT,
+  role VARCHAR(50) NOT NULL,
+  year INT NOT NULL CHECK (year BETWEEN 1 AND 6),
+  fringe_rate DECIMAL(5,2) NOT NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+INSERT INTO nsf_fringe_rates (role, year, fringe_rate) VALUES
+-- Faculty
+('Faculty', 1, 31.00),
+('Faculty', 2, 31.00),
+('Faculty', 3, 31.00),
+('Faculty', 4, 31.00),
+('Faculty', 5, 31.00),
+
+-- UI professional staff & Post Docs
+('UI professional staff & Post Docs', 1, 41.30),
+('UI professional staff & Post Docs', 2, 41.30),
+('UI professional staff & Post Docs', 3, 41.30),
+('UI professional staff & Post Docs', 4, 41.30),
+('UI professional staff & Post Docs', 5, 41.30),
+
+-- GRAs/UGrads
+('GRAs/UGrads', 1, 2.50),
+('GRAs/UGrads', 2, 2.50),
+('GRAs/UGrads', 3, 2.50),
+('GRAs/UGrads', 4, 2.50),
+('GRAs/UGrads', 5, 2.50),
+
+-- Temp Help
+('Temp Help', 1, 8.30),
+('Temp Help', 2, 8.30),
+('Temp Help', 3, 8.30),
+('Temp Help', 4, 8.30),
+('Temp Help', 5, 8.30);
+
+
+-- NIH Fringe Rates Table
+CREATE TABLE nih_fringe_rates (
+  id INT NOT NULL AUTO_INCREMENT,
+  role VARCHAR(50) NOT NULL,
+  year INT NOT NULL CHECK (year BETWEEN 1 AND 6),
+  fringe_rate DECIMAL(5,2) NOT NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+INSERT INTO nih_fringe_rates (role, year, fringe_rate) VALUES
+-- Faculty
+('Faculty', 1, 32.00),
+('Faculty', 2, 32.00),
+('Faculty', 3, 32.00),
+('Faculty', 4, 32.00),
 ('Faculty', 5, 32.00),
-('UI professional staff & Post Docs', 1, 32.00),
-('UI professional staff & Post Docs', 2, 32.50),
-('UI professional staff & Post Docs', 3, 33.00),
-('UI professional staff & Post Docs', 4, 33.50),
-('UI professional staff & Post Docs', 5, 34.00),
-('GRAs/UGrads', 1, 20.00),
-('GRAs/UGrads', 2, 20.50),
-('GRAs/UGrads', 3, 21.00),
-('GRAs/UGrads', 4, 21.50),
-('GRAs/UGrads', 5, 22.00),
-('Temp Help', 1, 10.00),
-('Temp Help', 2, 10.50),
-('Temp Help', 3, 11.00),
-('Temp Help', 4, 11.50),
-('Temp Help', 5, 12.00);
+
+-- UI professional staff & Post Docs
+('UI professional staff & Post Docs', 1, 39.50),
+('UI professional staff & Post Docs', 2, 39.50),
+('UI professional staff & Post Docs', 3, 39.50),
+('UI professional staff & Post Docs', 4, 39.50),
+('UI professional staff & Post Docs', 5, 39.50),
+
+-- GRAs/UGrads
+('GRAs/UGrads', 1, 3.00),
+('GRAs/UGrads', 2, 3.00),
+('GRAs/UGrads', 3, 3.00),
+('GRAs/UGrads', 4, 3.00),
+('GRAs/UGrads', 5, 3.00),
+
+-- Temp Help
+('Temp Help', 1, 9.00),
+('Temp Help', 2, 9.00),
+('Temp Help', 3, 9.00),
+('Temp Help', 4, 9.00),
+('Temp Help', 5, 9.00);
+
 
 
 
@@ -405,4 +492,28 @@ CREATE TABLE IF NOT EXISTS travel_itineraries (
   FOREIGN KEY (travel_id)
     REFERENCES grants_travel(id)
     ON DELETE CASCADE
+);
+
+
+
+
+
+CREATE TABLE graduate_student_costs (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_type VARCHAR(50) NOT NULL DEFAULT 'PhD',
+    base_tuition_per_semester DECIMAL(10,2) NOT NULL, -- e.g., 5408.00
+    summer_credit_cost DECIMAL(10,2) NOT NULL,        -- e.g., 601.00
+    health_insurance_cost DECIMAL(10,2) NOT NULL,     -- e.g., 1100.00
+    num_semesters_per_year INT NOT NULL DEFAULT 2,
+    annual_increase_percent DECIMAL(5,2) NOT NULL DEFAULT 3.00,
+    total_years INT NOT NULL DEFAULT 3
+);
+INSERT INTO graduate_student_costs (
+    base_tuition_per_semester,
+    summer_credit_cost,
+    health_insurance_cost
+) VALUES (
+    5408.00,   -- Tuition
+    601.00,    -- Summer Credit
+    1100.00    -- Health Insurance
 );
