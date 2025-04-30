@@ -9,11 +9,11 @@ from flask_login import current_user
 import io
 import base64
 from datetime import datetime
-from sqlalchemy import distinct, asc
+from sqlalchemy import distinct, asc, func
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from models import Grant, GrantPersonnel, GrantTravel,TravelItinerary, GrantMaterial, ExpenseSubcategory, PI, CoPI, ProfessionalStaff, Postdoc, GRA, Undergrad, TempHelp, NSFPersonnelCompensation, NIHPersonnelCompensation, NSFFringeRate, NIHFringeRate, GraduateStudentCost
-
+import dash_table
 
 # Register the page
 dash.register_page(__name__, path='/dashboard')
@@ -38,7 +38,21 @@ def layout():
             # Hidden div for storing download data
             html.Div(id='download-data', style={'display': 'none'}),
             dcc.Download(id="download-excel")
-        ], fluid=True)
+        ], fluid=True), 
+
+        # modal to view the grant information
+        dbc.Modal(
+            [
+                dbc.ModalHeader("Grant Details"),
+                dbc.ModalBody(id="view-grant-modal-body"),
+                dbc.ModalFooter(
+                    dbc.Button("Close", id="close-view-modal", className="ms-auto", n_clicks=0)
+                ),
+            ],
+            id="view-grant-modal",
+            is_open=False,
+            size="xl",  # large modal
+        ),
     ])
 
 # Callback to fetch and display grants
@@ -81,9 +95,9 @@ def display_grants(id):
                     dbc.Col(html.Div(grant.end_date.strftime('%Y-%m-%d')), width=2),
                     dbc.Col(html.Div([
                         dbc.Button("Edit", n_clicks=0,  id={'type': 'edit-btn', 'index': grant.id}, className="btn btn-warning btn-sm me-2"),
-                        dbc.Button("Delete", n_clicks=0,  id={'type': 'delete-btn', 'index': grant.id}, className="btn btn-danger btn-sm me-2"),
-                        dbc.Button("Manage", n_clicks=0,  id={'type': 'manage-btn', 'index': grant.id}, className="btn btn-info btn-sm me-2"),
+                        dbc.Button("View", n_clicks=0,  id={'type': 'manage-btn', 'index': grant.id}, className="btn btn-info btn-sm me-2"),
                         dbc.Button("Download Excel", n_clicks=0,  id={'type': 'download-excel-btn', 'index': grant.id}, className="btn btn-success btn-sm me-2", ), 
+                        dbc.Button("Delete", n_clicks=0,  id={'type': 'delete-btn', 'index': grant.id}, className="btn btn-danger btn-sm me-2"),
                     ], style={"display": "flex", "gap": "0px", }), width=3)
                 ], className="mb-2 p-2 rounded", style=row_style)
             )
@@ -110,6 +124,159 @@ def display_grants(id):
 
     finally:
         session.close()  # Close the session
+
+
+
+
+##############################################
+# view the modal
+##############################################
+@callback(
+    Output("view-grant-modal", "is_open"),
+    Output("view-grant-modal-body", "children"),
+    Input({"type": "manage-btn", "index": ALL}, "n_clicks"),
+    Input("close-view-modal", "n_clicks"),
+    State("view-grant-modal", "is_open"),
+    prevent_initial_call=True
+)
+def toggle_view_modal(n_clicks_list, close_clicks, is_open):
+    triggered = ctx.triggered_id
+    if not (triggered and any(n_clicks_list)):
+        return is_open, dash.no_update
+    
+    # If they clicked “Close”
+    if triggered == "close-view-modal":
+        # hide modal, leave body untouched
+        return False, dash.no_update
+
+    grant_id = triggered["index"]
+    session = get_db_session()
+    grant = session.query(Grant).get(grant_id)
+
+    # 1) Grant Info
+    pis = [r[0] for r in session
+       .query(distinct(GrantPersonnel.name))
+       .filter_by(grant_id=grant_id, position="PI")
+       .all()]
+    copis = [r[0] for r in session
+         .query(distinct(GrantPersonnel.name))
+         .filter_by(grant_id=grant_id, position="Co-PI")
+         .all()]
+    grant_info = html.Div([
+        html.H5(grant.title),
+        html.P([html.Strong("Funding Agency: "), grant.funding_agency]),
+        html.P([html.Strong("Period: "), f"{grant.start_date} → {grant.end_date}"]),
+        html.P([html.Strong("Duration: "), f"{grant.duration} years"]),
+        html.P([html.Strong("PI(s): "), ', '.join(pis) or 'N/A']),
+        html.P([html.Strong("Co-PI(s): "), ', '.join(copis) or 'N/A']),
+        html.P([html.Strong("Grant Description: "), grant.description or ''])
+    ], className="mb-4")
+
+
+    # 2) Personnel List (name, role, email)
+    model_map = {
+        "PI": PI, "Co-PI": CoPI,
+        "UI Professional Staff": ProfessionalStaff,
+        "Postdoc": Postdoc, "GRA": GRA,
+        "Undergrad": Undergrad, "Temp Help": TempHelp
+    }
+    people = session.query(distinct(GrantPersonnel.name),
+                           GrantPersonnel.position) \
+                   .filter_by(grant_id=grant_id).all()
+    personnel_rows = []
+    for name, position in people:
+        mdl = model_map.get(position)
+        email = session.query(mdl.email).filter_by(full_name=name).scalar() if mdl else ""
+        personnel_rows.append({
+            "Name": name,
+            "Role": position,
+            "Email": email or "—"
+        })
+    personnel_table = dash_table.DataTable(
+        columns=[
+            {"name": "Name", "id": "Name"},
+            {"name": "Role", "id": "Role"},
+            {"name": "Email", "id": "Email"},
+        ],
+        data=personnel_rows,
+        style_table={"overflowX": "auto"},
+        style_header={"fontWeight": "bold"},
+        style_cell={"textAlign": "left"}
+    )
+
+    # 3) Personnel Hours by Year
+    n_years = grant.duration
+    # Build a lookup of summed hours per (name, position, year)
+    sums = session.query(
+        GrantPersonnel.name, GrantPersonnel.position, GrantPersonnel.year,
+        func.coalesce(func.sum(GrantPersonnel.estimated_hours), 0).label("hrs")
+    ).filter_by(grant_id=grant_id) \
+     .group_by(GrantPersonnel.name, GrantPersonnel.position, GrantPersonnel.year) \
+     .all()
+    hours_map = {
+        (r.name, r.position, r.year): float(r.hrs)
+        for r in sums
+    }
+
+    # Build columns and rows
+    hour_cols = [{"name": c, "id": c} for c in ["Name", "Role"]] + [
+        {"name": f"Year {i+1}", "id": f"Year {i+1}"} for i in range(n_years)
+    ]
+    hour_rows = []
+    for name, position in people:
+        row = {"Name": name, "Role": position}
+        for i in range(n_years):
+            year = grant.start_date.year + i
+            row[f"Year {i+1}"] = hours_map.get((name, position, year), 0.0)
+        hour_rows.append(row)
+
+    hours_table = dash_table.DataTable(
+        columns=hour_cols,
+        data=hour_rows,
+        style_table={"overflowX": "auto"},
+        style_header={"fontWeight": "bold"},
+        style_cell={"textAlign": "center"}
+    )
+
+    session.close()
+
+    modal_body = html.Div([
+        grant_info,
+
+        dbc.Row(
+            dbc.Col(
+                html.H6("Personnel List", className="text-center p-2"),
+                width=12,
+                className="bg-light rounded mb-2"
+            )
+        ),
+        personnel_table,
+
+        dbc.Row(
+            dbc.Col(
+                html.H6("Personnel Hours", className="text-center p-2"),
+                width=12,
+                className="bg-light rounded mb-2"
+            )
+        ),
+        hours_table
+    ])
+    return True, modal_body
+
+
+# @callback(
+#     Output("view-grant-modal", "is_open"),
+#     Input("close-view-modal", "n_clicks"),
+#     State("view-grant-modal", "is_open"),
+#     prevent_initial_call=True
+# )
+# def close_view_modal(n_clicks, is_open):
+#     # any click on the Close button will force the modal closed
+#     if n_clicks:
+#         return False
+#     return is_open
+
+
 
 
 @callback(

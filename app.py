@@ -158,13 +158,13 @@ navbar = dbc.Nav(
             className="nav-link",
             style={"font-size": "1.1rem", "margin": "5px 0", "color": "black"},
         ),
-        dbc.NavLink(
-            "Manage Grants",
-            href="/home/manage-grants",
-            active="exact",
-            className="nav-link",
-            style={"font-size": "1.1rem", "margin": "5px 0", "color": "black"},
-        ),
+        # dbc.NavLink(
+        #     "View Grants",
+        #     href="/home/view-grants",
+        #     active="exact",
+        #     className="nav-link",
+        #     style={"font-size": "1.1rem", "margin": "5px 0", "color": "black"},
+        # ),
         dbc.NavLink(
             "Settings",
             href="/home/settings",

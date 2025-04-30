@@ -688,7 +688,8 @@ def render_personnel_rows(rows):
                     dbc.Label("Name"),
                     dcc.Dropdown(
                         id={"type":"grant-input","name":"person-name","index":idx},
-                        options=personnel_cache.get(r['position'], []),
+                        # options=personnel_cache.get(r['position'], []),  #load_personnel_options()   using this function
+                        options=load_personnel_options().get(r['position'], []),
                         value=r['name'],
                         placeholder="Select full name",
                     ),

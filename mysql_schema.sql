@@ -17,57 +17,6 @@ CREATE TABLE IF NOT EXISTS users (
 
 
 -- Create the nsf_personnel_compensation table
-/* CREATE TABLE nsf_personnel_compensation (
-    id SERIAL PRIMARY KEY,
-    role VARCHAR(100) NOT NULL, -- PI, Co-PI, GRAs, etc.
-    base_hourly_rate DECIMAL(10,2) NOT NULL, 
-    y2_rate_increase DECIMAL(5,2) NOT NULL, 
-    y3_rate_increase DECIMAL(5,2) NOT NULL,
-    y4_rate_increase DECIMAL(5,2) NOT NULL,
-    y5_rate_increase DECIMAL(5,2) NOT NULL,
-    y1_rate DECIMAL(10,2) GENERATED ALWAYS AS (base_hourly_rate) STORED,
-    y2_rate DECIMAL(10,2) GENERATED ALWAYS AS (base_hourly_rate * (1 + y2_rate_increase)) STORED,
-    y3_rate DECIMAL(10,2) GENERATED ALWAYS AS (y2_rate * (1 + y3_rate_increase)) STORED,
-    y4_rate DECIMAL(10,2) GENERATED ALWAYS AS (y3_rate * (1 + y4_rate_increase)) STORED,
-    y5_rate DECIMAL(10,2) GENERATED ALWAYS AS (y4_rate * (1 + y5_rate_increase)) STORED,
-); */
-
--- insert into NSF personnel_compensation table
-/* INSERT INTO nsf_personnel_compensation (role, base_hourly_rate, y2_rate_increase, y3_rate_increase, y4_rate_increase, y5_rate_increase) 
-VALUES
-    ('PI', 50.00, 0.20, 0.20, 0.20, 0.20),
-    ('Co-PI', 45.00, 0.15, 0.15, 0.15, 0.15),
-    ('UI Professional Staff & Post Docs', 35.00, 0.10, 0.10, 0.10, 0.10),
-    ('GRAs/UGrads', 25.00, 0.05, 0.05, 0.05, 0.05),
-    ('Temp Help', 20.00, 0.02, 0.02, 0.02, 0.02); */
-
-
-
--- create the nih_personnel_compensation table
-/* CREATE TABLE nih_personnel_compensation (
-    id SERIAL PRIMARY KEY,
-    role VARCHAR(100) NOT NULL, -- PI, Co-PI, Post Docs, etc.
-    base_hourly_rate DECIMAL(10,2) NOT NULL, 
-    y2_rate_increase DECIMAL(5,2) NOT NULL, 
-    y3_rate_increase DECIMAL(5,2) NOT NULL,
-    y4_rate_increase DECIMAL(5,2) NOT NULL,
-    y5_rate_increase DECIMAL(5,2) NOT NULL,
-    y1_rate DECIMAL(10,2) GENERATED ALWAYS AS (base_hourly_rate) STORED,
-    y2_rate DECIMAL(10,2) GENERATED ALWAYS AS (base_hourly_rate * (1 + y2_rate_increase)) STORED,
-    y3_rate DECIMAL(10,2) GENERATED ALWAYS AS (y2_rate * (1 + y3_rate_increase)) STORED,
-    y4_rate DECIMAL(10,2) GENERATED ALWAYS AS (y3_rate * (1 + y4_rate_increase)) STORED,
-    y5_rate DECIMAL(10,2) GENERATED ALWAYS AS (y4_rate * (1 + y5_rate_increase)) STORED);
-
-INSERT INTO nih_personnel_compensation (role, base_hourly_rate, y2_rate_increase, y3_rate_increase, y4_rate_increase, y5_rate_increase) 
-VALUES
-    ('PI', 60.00, 0.25, 0.20, 0.18, 0.15),
-    ('Co-PI', 55.00, 0.22, 0.18, 0.16, 0.14),
-    ('Senior Researcher', 45.00, 0.18, 0.15, 0.12, 0.10),
-    ('Postdoctoral Fellow', 38.00, 0.12, 0.10, 0.08, 0.06),
-    ('GRAs/UGrads', 28.00, 0.07, 0.06, 0.05, 0.05),
-    ('Temp Help', 22.00, 0.03, 0.03, 0.02, 0.02); */
-
--- Create the nsf_personnel_compensation table
 CREATE TABLE nsf_personnel_compensation (
     id INT AUTO_INCREMENT PRIMARY KEY,
     role VARCHAR(100) NOT NULL,
