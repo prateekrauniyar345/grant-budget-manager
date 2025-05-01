@@ -158,13 +158,13 @@ navbar = dbc.Nav(
             className="nav-link",
             style={"font-size": "1.1rem", "margin": "5px 0", "color": "black"},
         ),
-        # dbc.NavLink(
-        #     "View Grants",
-        #     href="/home/view-grants",
-        #     active="exact",
-        #     className="nav-link",
-        #     style={"font-size": "1.1rem", "margin": "5px 0", "color": "black"},
-        # ),
+        dbc.NavLink(
+            "subawards",
+            href="/home/subawards",
+            active="exact",
+            className="nav-link",
+            style={"font-size": "1.1rem", "margin": "5px 0", "color": "black"},
+        ),
         dbc.NavLink(
             "Settings",
             href="/home/settings",
@@ -280,8 +280,8 @@ def change_dash_app_heading(url):
         return "Dashboard"
     elif url == "/home/generate-grants":
         return "Generate Grants"
-    elif url == "/home/manage-grants":
-        return "Manage Grants"
+    elif url == "/home/subawards":
+        return "Subawards"
     elif url == "/home/settings":
         return "Settings"
     elif url == "/home/profile":

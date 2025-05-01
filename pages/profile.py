@@ -59,6 +59,7 @@ def populate_profile(_):
             personnel_counts[role] = personnel_counts.get(role, 0) + 1
 
         grant_data.append({
+            'id': grant.id,
             'title': grant.title,
             'agency': grant.funding_agency,
             'duration': grant.duration,
@@ -81,6 +82,7 @@ def populate_profile(_):
     # --- Grants Table ---
     grants_table = dbc.Table([
         html.Thead(html.Tr([
+            html.Th("Grant ID"),
             html.Th("Title"),
             html.Th("Agency"),
             html.Th("Duration"),
@@ -90,6 +92,7 @@ def populate_profile(_):
         ])),
         html.Tbody([
             html.Tr([
+                html.Td(grant['id']),
                 html.Td(grant['title']),
                 html.Td(grant['agency']),
                 html.Td(f"{grant['duration']} yrs"),
