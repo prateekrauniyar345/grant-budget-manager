@@ -12,8 +12,18 @@ from datetime import datetime
 from sqlalchemy import distinct, asc, func
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from models import Grant, GrantPersonnel, GrantTravel,TravelItinerary, GrantMaterial, ExpenseSubcategory, PI, CoPI, ProfessionalStaff, Postdoc, GRA, Undergrad, TempHelp, NSFPersonnelCompensation, NIHPersonnelCompensation, NSFFringeRate, NIHFringeRate, GraduateStudentCost
+from models import Grant, GrantPersonnel, GrantTravel,TravelItinerary, GrantMaterial, ExpenseCategory, ExpenseSubcategory, PI, CoPI, ProfessionalStaff, Postdoc, GRA, Undergrad, TempHelp, NSFPersonnelCompensation, NIHPersonnelCompensation, NSFFringeRate, NIHFringeRate, GraduateStudentCost
 import dash_table
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from reportlab.platypus import (
+    SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+)
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle
+
+
 
 # Register the page
 dash.register_page(__name__, path='/dashboard')
@@ -22,7 +32,10 @@ dash.register_page(__name__, path='/dashboard')
 def layout():
     return html.Div([
         dcc.Store(id="selected-grant-id"),
+        dcc.Store(id="view-grant-id-store"),
         dcc.Location(id="redirect-location", refresh=True),
+        dcc.Download(id="download-pdf"), 
+        dcc.Download(id="download-excel-modal"),
 
 
         html.H3('Available Budgets', className="text-center mt-4 mb-4", style={"color": "#2c3e50"}),
@@ -45,9 +58,11 @@ def layout():
             [
                 dbc.ModalHeader("Grant Details"),
                 dbc.ModalBody(id="view-grant-modal-body"),
-                dbc.ModalFooter(
-                    dbc.Button("Close", id="close-view-modal", className="ms-auto", n_clicks=0)
-                ),
+                dbc.ModalFooter([
+                    dbc.Button("Download Details as Excel", id="download-modal-excel-btn", n_clicks=0, color="success", className="me-2"),
+                    dbc.Button("Download Details as PDF",   id="download-modal-pdf-btn", n_clicks=0,   color="secondary", className="me-2"),
+                    dbc.Button("Close", id="close-view-modal", className="ms-auto", n_clicks=0),
+                ]),
             ],
             id="view-grant-modal",
             is_open=False,
@@ -134,6 +149,7 @@ def display_grants(id):
 @callback(
     Output("view-grant-modal", "is_open"),
     Output("view-grant-modal-body", "children"),
+    Output("view-grant-id-store", "data"),
     Input({"type": "manage-btn", "index": ALL}, "n_clicks"),
     Input("close-view-modal", "n_clicks"),
     State("view-grant-modal", "is_open"),
@@ -142,12 +158,12 @@ def display_grants(id):
 def toggle_view_modal(n_clicks_list, close_clicks, is_open):
     triggered = ctx.triggered_id
     if not (triggered and any(n_clicks_list)):
-        return is_open, dash.no_update
+        return is_open, dash.no_update, dash.no_update
     
     # If they clicked “Close”
     if triggered == "close-view-modal":
         # hide modal, leave body untouched
-        return False, dash.no_update
+        return False, dash.no_update, dash.no_update
 
     grant_id = triggered["index"]
     session = get_db_session()
@@ -238,6 +254,81 @@ def toggle_view_modal(n_clicks_list, close_clicks, is_open):
         style_cell={"textAlign": "center"}
     )
 
+
+
+    # travel section
+    # --- 4) Travel Itineraries ---
+    travel_records = (
+        session.query(GrantTravel)
+               .filter_by(grant_id=grant_id)
+               .all()
+    )
+    travel_rows = []
+    for tr in travel_records:
+        itin = tr.itinerary  # one-to-one
+        travel_rows.append({
+            "Type": tr.travel_type or "—",
+            "Year": tr.year or "—",
+            "Name": tr.name or "—",
+            "Description": tr.description or "—",
+            "Departure": itin.departure_date.strftime("%Y-%m-%d") if itin and itin.departure_date else "—",
+            "Arrival":   itin.arrival_date.strftime("%Y-%m-%d")   if itin and itin.arrival_date   else "—",
+            "Flight Cost": float(itin.flight_cost)   if itin and itin.flight_cost   else 0.0,
+            "Days Stay":   itin.days_stay             if itin and itin.days_stay         else 0,
+            "Food/Day":    float(itin.per_day_food_lodging)    if itin and itin.per_day_food_lodging    else 0.0,
+            "Transp/Day":  float(itin.per_day_transportation)  if itin and itin.per_day_transportation  else 0.0,
+        })
+
+    travel_table = dash_table.DataTable(
+        columns=[
+            {"name": col, "id": col}
+            for col in ["Type", "Year", "Name", "Description",
+                        "Departure", "Arrival",
+                        "Flight Cost", "Days Stay", "Food/Day", "Transp/Day"]
+        ],
+        data=travel_rows,
+        style_table={"overflowX": "auto"},
+        style_header={"fontWeight": "bold"},
+        style_cell={"textAlign": "center", "whiteSpace": "normal"}
+    )
+
+
+
+
+    # material section
+    # --- 5) Material Expenses ---
+
+    mat_query = (
+        session.query(
+            GrantMaterial,
+            ExpenseCategory.name.label("Category"),
+            ExpenseSubcategory.name.label("Subcategory")
+        )
+        .join(ExpenseCategory,    GrantMaterial.category_id    == ExpenseCategory.id)
+        .join(ExpenseSubcategory, GrantMaterial.subcategory_id == ExpenseSubcategory.id)
+        .filter(GrantMaterial.grant_id == grant_id)
+        .all()
+    )
+
+    mat_rows = []
+    for gm, cat_name, subcat_name in mat_query:
+        mat_rows.append({
+            "Category":    cat_name,
+            "Subcategory": subcat_name,
+            "Year":        gm.year,
+            "Description": gm.description or "",
+            "Cost":        float(gm.cost or 0)
+        })
+
+    materials_table = dash_table.DataTable(
+        columns=[{"name": c, "id": c} for c in ["Category", "Subcategory", "Year", "Description", "Cost"]],
+        data=mat_rows,
+        style_table={"overflowX": "auto"},
+        style_header={"fontWeight": "bold"},
+        style_cell={"textAlign": "center"}
+    )
+
+
     session.close()
 
     modal_body = html.Div([
@@ -259,22 +350,408 @@ def toggle_view_modal(n_clicks_list, close_clicks, is_open):
                 className="bg-light rounded mb-2"
             )
         ),
-        hours_table
+        hours_table, 
+        dbc.Row(
+            dbc.Col(
+                html.H6("Travel Information", className="text-center p-2"),
+                width=12,
+                className="bg-light rounded mb-2"
+            )
+        ),
+        travel_table, 
+        dbc.Row(
+            dbc.Col(
+                html.H6("Materials", className="text-center p-2"),
+                width=12,
+                className="bg-light rounded mb-2"
+            )
+        ),
+        materials_table,
     ])
-    return True, modal_body
+    return True, modal_body, grant_id
 
 
-# @callback(
-#     Output("view-grant-modal", "is_open"),
-#     Input("close-view-modal", "n_clicks"),
-#     State("view-grant-modal", "is_open"),
-#     prevent_initial_call=True
-# )
-# def close_view_modal(n_clicks, is_open):
-#     # any click on the Close button will force the modal closed
-#     if n_clicks:
-#         return False
-#     return is_open
+################################################
+# Callback to handle the download button for PDF Dwonload
+################################################
+# helper function & style for wrapped cells
+# define once:
+USABLE_WIDTH = letter[0] - 30 - 30  # page width minus left+right margins
+
+# helper function & style for wrapped cells
+styles = getSampleStyleSheet()
+wrap_style = ParagraphStyle(
+    "wrap", parent=styles["BodyText"],
+    wordWrap="CJK", fontSize=10, leading=12
+)
+
+def make_wrapped_table(data_rows, col_names, col_widths=None):
+    """
+    Builds a Table of Paragraphs (so text wraps).
+    col_widths: list of widths (in points) or None to auto-divide evenly.
+    """
+    n = len(col_names)
+    if col_widths is None:
+        cw = USABLE_WIDTH / n
+        col_widths = [cw] * n
+
+    # header row as bold paragraphs
+    hdr = [Paragraph(f"<b>{c}</b>", wrap_style) for c in col_names]
+    tbl_data = [hdr]
+
+    for row in data_rows:
+        cells = []
+        if isinstance(row, dict):
+            vals = [row.get(c, "") for c in col_names]
+        else:
+            vals = list(row)
+        for v in vals:
+            cells.append(Paragraph(str(v), wrap_style))
+        tbl_data.append(cells)
+
+    tbl = Table(tbl_data, colWidths=col_widths)
+    tbl.setStyle(TableStyle([
+        ("GRID",   (0, 0), (-1, -1), 0.5, colors.black),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    return tbl
+
+# --- your callback for PDF download ---
+@callback(
+    Output("download-pdf", "data"),
+    Input("download-modal-pdf-btn", "n_clicks"),
+    State("view-grant-id-store", "data"),
+    prevent_initial_call=True
+)
+def download_pdf(n_clicks, grant_id):
+    if not grant_id or n_clicks is None:
+        raise PreventUpdate
+
+    session = get_db_session()
+    grant = session.query(Grant).get(grant_id)
+
+    # 1) Grant Info
+    pis = [r[0] for r in session.query(distinct(GrantPersonnel.name))
+                          .filter_by(grant_id=grant_id, position="PI").all()]
+    copis = [r[0] for r in session.query(distinct(GrantPersonnel.name))
+                             .filter_by(grant_id=grant_id, position="Co-PI").all()]
+
+    # 2) Personnel List
+    model_map = {
+        "PI": PI, "Co-PI": CoPI,
+        "UI Professional Staff": ProfessionalStaff,
+        "Postdoc": Postdoc, "GRA": GRA,
+        "Undergrad": Undergrad, "Temp Help": TempHelp
+    }
+    people = session.query(distinct(GrantPersonnel.name), GrantPersonnel.position) \
+                   .filter_by(grant_id=grant_id).all()
+    personnel_rows = []
+    for name, position in people:
+        mdl = model_map.get(position)
+        email = session.query(mdl.email).filter_by(full_name=name).scalar() if mdl else ""
+        personnel_rows.append({"Name": name, "Role": position, "Email": email or "—"})
+
+    # 3) Personnel Hours by Year
+    n_years = grant.duration
+    sums = session.query(
+        GrantPersonnel.name, GrantPersonnel.position, GrantPersonnel.year,
+        func.coalesce(func.sum(GrantPersonnel.estimated_hours), 0).label("hrs")
+    ).filter_by(grant_id=grant_id) \
+     .group_by(GrantPersonnel.name, GrantPersonnel.position, GrantPersonnel.year) \
+     .all()
+    hours_map = {(r.name, r.position, r.year): float(r.hrs) for r in sums}
+    hour_rows = []
+    for name, position in people:
+        row = {"Name": name, "Role": position}
+        for i in range(n_years):
+            year = grant.start_date.year + i
+            row[f"Year {i+1}"] = hours_map.get((name, position, year), 0.0)
+        hour_rows.append(row)
+
+    # 4) Travel Information
+    travel_records = session.query(GrantTravel).filter_by(grant_id=grant_id).all()
+    travel_rows = []
+    for tr in travel_records:
+        itin = tr.itinerary
+        travel_rows.append({
+            "Type": tr.travel_type or "—",
+            "Year": tr.year or "—",
+            "Name": tr.name or "—",
+            "Description": tr.description or "—",
+            "Departure": itin.departure_date.strftime("%Y-%m-%d") if itin and itin.departure_date else "—",
+            "Arrival":   itin.arrival_date.strftime("%Y-%m-%d")   if itin and itin.arrival_date   else "—",
+            "Flight Cost": float(itin.flight_cost)   if itin and itin.flight_cost   else 0.0,
+            "Days Stay":   itin.days_stay             if itin and itin.days_stay         else 0,
+            "Food/Day":    float(itin.per_day_food_lodging)    if itin and itin.per_day_food_lodging    else 0.0,
+            "Transp/Day":  float(itin.per_day_transportation)  if itin and itin.per_day_transportation  else 0.0,
+        })
+
+    # 5) Materials
+    mat_query = (
+        session.query(GrantMaterial, ExpenseCategory.name.label("Category"), ExpenseSubcategory.name.label("Subcategory"))
+               .join(ExpenseCategory,    GrantMaterial.category_id    == ExpenseCategory.id)
+               .join(ExpenseSubcategory, GrantMaterial.subcategory_id == ExpenseSubcategory.id)
+               .filter(GrantMaterial.grant_id == grant_id)
+               .all()
+    )
+    mat_rows = []
+    for gm, cat_name, subcat_name in mat_query:
+        mat_rows.append({
+            "Category":    cat_name,
+            "Subcategory": subcat_name,
+            "Year":        gm.year or "—",
+            "Description": gm.description or "",
+            "Cost":        float(gm.cost or 0)
+        })
+
+    session.close()
+
+    # --- Build PDF ---
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=letter, leftMargin=30, rightMargin=30, topMargin=30, bottomMargin=18)
+    usable_width = letter[0] - doc.leftMargin - doc.rightMargin
+    elems = []
+
+    elems.append(Paragraph(f"Grant Report: {grant.title}", styles["Title"]))
+    elems.append(Spacer(1, 12))
+    elems.append(Paragraph(f"<b>Funding Agency:</b> {grant.funding_agency}", styles["Normal"]))
+    elems.append(Paragraph(f"<b>Period:</b> {grant.start_date} → {grant.end_date}", styles["Normal"]))
+    elems.append(Paragraph(f"<b>Duration:</b> {grant.duration} years", styles["Normal"]))
+    # new fields
+    elems.append(Paragraph(f"<b>PI(s):</b> {', '.join(pis) if pis else 'N/A'}", styles["Normal"]))
+    elems.append(Paragraph(f"<b>Co-PI(s):</b> {', '.join(copis) if copis else 'N/A'}", styles["Normal"]))
+    elems.append(Paragraph(f"<b>Grant Description:</b> {grant.description or 'N/A'}", styles["Normal"]))
+
+    elems.append(Spacer(1, 12))
+
+    # Personnel List
+    elems.append(Paragraph("Personnel List", styles["Heading2"]))
+    elems.append(make_wrapped_table(personnel_rows, ["Name", "Role", "Email"]))
+    elems.append(Spacer(1, 12))
+
+    # Personnel Hours
+    hour_cols = ["Name", "Role"] + [f"Year {i+1}" for i in range(n_years)]
+    elems.append(Paragraph("Personnel Hours", styles["Heading2"]))
+    elems.append(make_wrapped_table(hour_rows, hour_cols))
+    elems.append(Spacer(1, 12))
+
+    # Travel Information
+    travel_cols = ["Type","Year","Name","Description","Departure","Arrival","Flight Cost","Days Stay","Food/Day","Transp/Day"]
+    # custom widths to give Description more room
+    w = usable_width
+    travel_widths = [0.08*w,0.06*w,0.08*w,0.30*w,0.08*w,0.08*w,0.10*w,0.06*w,0.08*w,0.08*w]
+    elems.append(Paragraph("Travel Information", styles["Heading2"]))
+    elems.append(make_wrapped_table(travel_rows, travel_cols, travel_widths))
+    elems.append(Spacer(1, 12))
+
+    # Materials
+    mat_cols = ["Category","Subcategory","Year","Description","Cost"]
+    w = usable_width
+    mat_widths = [0.15*w,0.15*w,0.08*w,0.40*w,0.22*w]
+    elems.append(Paragraph("Materials", styles["Heading2"]))
+    elems.append(make_wrapped_table(mat_rows, mat_cols, mat_widths))
+
+    doc.build(elems)
+    pdf = buf.getvalue()
+    buf.close()
+    return dcc.send_bytes(pdf, filename=f"grant_{grant_id}.pdf")
+
+
+
+################################################
+# Callback to handle the download button for Excel
+################################################
+@callback(
+    Output("download-excel-modal", "data"),
+    Input("download-modal-excel-btn", "n_clicks"),
+    State("view-grant-id-store", "data"),
+    prevent_initial_call=True,
+)
+def download_excel(n_clicks, grant_id):
+    if not grant_id or not n_clicks:
+        raise PreventUpdate
+
+    session = get_db_session()
+    grant = session.query(Grant).get(grant_id)
+
+    # --- 1) Grant Info as a one‐row DataFrame ---
+    pis = [r[0] for r in session
+       .query(distinct(GrantPersonnel.name))
+       .filter_by(grant_id=grant_id, position="PI")
+       .all()]
+    copis = [r[0] for r in session
+       .query(distinct(GrantPersonnel.name))
+       .filter_by(grant_id=grant_id, position="Co-PI")
+       .all()]
+
+    info_df = pd.DataFrame([{
+        "Title": grant.title,
+        "Funding Agency": grant.funding_agency,
+        "Period": f"{grant.start_date} → {grant.end_date}",
+        "Duration (years)": grant.duration,
+        "PI(s)": ", ".join(pis) or "N/A",
+        "Co-PI(s)": ", ".join(copis) or "N/A",
+        "Description": grant.description or ""
+    }])
+
+    # --- 2) Personnel List ---
+    model_map = {
+        "PI": PI, "Co-PI": CoPI,
+        "UI Professional Staff": ProfessionalStaff,
+        "Postdoc": Postdoc, "GRA": GRA,
+        "Undergrad": Undergrad, "Temp Help": TempHelp
+    }
+    people = session.query(distinct(GrantPersonnel.name), GrantPersonnel.position) \
+                   .filter_by(grant_id=grant_id).all()
+    per_rows = []
+    for name, pos in people:
+        mdl = model_map.get(pos)
+        email = session.query(mdl.email).filter_by(full_name=name).scalar() if mdl else ""
+        per_rows.append({"Name": name, "Role": pos, "Email": email or "—"})
+    per_df = pd.DataFrame(per_rows)
+
+    # --- 3) Personnel Hours by Year ---
+    n_years = grant.duration
+    sums = session.query(
+        GrantPersonnel.name,
+        GrantPersonnel.position,
+        GrantPersonnel.year,
+        func.coalesce(func.sum(GrantPersonnel.estimated_hours), 0).label("hrs")
+    ).filter_by(grant_id=grant_id) \
+     .group_by(GrantPersonnel.name, GrantPersonnel.position, GrantPersonnel.year) \
+     .all()
+    hrs_map = {(r.name, r.position, r.year): float(r.hrs) for r in sums}
+    hrs_rows = []
+    for name, pos in people:
+        row = {"Name": name, "Role": pos}
+        for i in range(n_years):
+            year = grant.start_date.year + i
+            row[f"Year {i+1}"] = hrs_map.get((name, pos, year), 0.0)
+        hrs_rows.append(row)
+    hrs_df = pd.DataFrame(hrs_rows)
+
+    # --- 4) Travel Itineraries ---
+    trav_recs = session.query(GrantTravel).filter_by(grant_id=grant_id).all()
+    trav_rows = []
+    for tr in trav_recs:
+        it = tr.itinerary
+        trav_rows.append({
+            "Type": tr.travel_type or "—",
+            "Year": tr.year or "—",
+            "Name": tr.name or "—",
+            "Description": tr.description or "—",
+            "Departure": it.departure_date.strftime("%Y-%m-%d") if it and it.departure_date else "—",
+            "Arrival":   it.arrival_date.strftime("%Y-%m-%d")   if it and it.arrival_date   else "—",
+            "Flight Cost": float(it.flight_cost) if it and it.flight_cost else 0.0,
+            "Days Stay":   it.days_stay     if it and it.days_stay     else 0,
+            "Food/Day":    float(it.per_day_food_lodging)    if it and it.per_day_food_lodging    else 0.0,
+            "Transp/Day":  float(it.per_day_transportation)  if it and it.per_day_transportation  else 0.0,
+        })
+    trav_df = pd.DataFrame(trav_rows)
+
+    # --- 5) Materials ---
+    mat_q = (
+        session.query(
+            GrantMaterial,
+            ExpenseCategory.name.label("Category"),
+            ExpenseSubcategory.name.label("Subcategory")
+        )
+        .join(ExpenseCategory,    GrantMaterial.category_id    == ExpenseCategory.id)
+        .join(ExpenseSubcategory, GrantMaterial.subcategory_id == ExpenseSubcategory.id)
+        .filter(GrantMaterial.grant_id == grant_id)
+        .all()
+    )
+    mat_rows = []
+    for gm, cat, sub in mat_q:
+        mat_rows.append({
+            "Category":    cat,
+            "Subcategory": sub,
+            "Year":        gm.year or "—",
+            "Description": gm.description or "",
+            "Cost":        float(gm.cost or 0)
+        })
+    mat_df = pd.DataFrame(mat_rows)
+
+    session.close()
+
+    # --- Write everything into one sheet, with spacing between sections ---
+    buf = io.BytesIO()
+    # Section‐title format
+    
+    with pd.ExcelWriter(buf, engine="xlsxwriter") as writer:
+        workbook  = writer.book
+        worksheet = workbook.add_worksheet("Report")
+        writer.sheets["Report"] = worksheet
+
+        section_fmt = workbook.add_format({
+            "bold": True,
+            "font_size": 12,
+            "bg_color": "#4F81BD",   # blue
+            "font_color": "white",
+            "border": 1
+        })
+
+        # Header‐row format
+        header_fmt = workbook.add_format({
+            "bold": True,
+            "bg_color": "#D9E1F2",   # light blue
+            "border": 1
+        })
+
+        # Alternate‐row format
+        alt_fmt = workbook.add_format({
+            "bg_color": "#F2F2F2"    # very light grey
+        })
+
+        # helper for writing a dataframe at a given row
+        def sheet_df(df, start_row, title):
+            # 1) Section title
+            worksheet.write(start_row, 0, title, section_fmt)
+
+            # 2) Manually write & format the header row one row below the title
+            for col_num, col_name in enumerate(df.columns):
+                worksheet.write(start_row + 1, col_num, col_name, header_fmt)
+
+            # 3) Write the data starting two rows below the title (i.e. below your header)
+            df.to_excel(
+                writer,
+                sheet_name="Report",
+                index=False,
+                header=False,
+                startrow=start_row + 2
+            )
+
+            # 4) Apply alternating‐row colours
+            for i in range(len(df)):
+                row_idx = start_row + 2 + i
+                if i % 2 == 1:
+                    worksheet.set_row(row_idx, cell_format=alt_fmt)
+
+            # 5) Return the next free row (+2 rows of spacing)
+            return start_row + 2 + len(df) + 2
+
+
+
+        row = 0
+        row = sheet_df(info_df,  row, "Grant Info")
+        row = sheet_df(per_df,   row, "Personnel List")
+        row = sheet_df(hrs_df,   row, "Personnel Hours")
+        row = sheet_df(trav_df,  row, "Travel Information")
+        row = sheet_df(mat_df,   row, "Materials")
+
+        # you can also auto‐adjust column widths here if desired...
+        max_cols = max(
+            len(info_df.columns),
+            len(per_df.columns),
+            len(hrs_df.columns),
+            len(trav_df.columns),
+            len(mat_df.columns)
+        )
+        worksheet.set_column(0, max_cols - 1, 23)
+
+    buf.seek(0)
+    return dcc.send_bytes(buf.read(), filename=f"grant_{grant_id}.xlsx")
+
 
 
 

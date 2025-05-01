@@ -16,6 +16,7 @@ from dash import callback_context  # already using ctx probably
 # Callback to handle form submission
 from sqlalchemy.exc import SQLAlchemyError
 from collections import OrderedDict
+import time
 
 
 # Register the page
@@ -391,9 +392,10 @@ def layout(**query_params):
 
 
         html.H3('Generate Grants', className="text-center mt-4 mb-4", style={"color": "#2c3e50"}),
-
+        # time.sleep(0.09),
         dcc.Loading(
             type='circle',
+            
             children=[
                 container,
                 success_toast,
@@ -658,6 +660,8 @@ def manage_personnel(add_clicks, delete_clicks, positions, names, rows):
     Input('personnel-store', 'data'),
 )
 def render_personnel_rows(rows):
+    if not rows:
+        return []
     rows = rows or []
     children = []
     for r in rows:
@@ -714,6 +718,7 @@ def render_personnel_rows(rows):
                     ),
             ], className="mb-2")
         )
+        time.sleep(0.01),
     return children
 
 
@@ -1473,11 +1478,12 @@ def reload_page(n_clicks):
     Output({'type':'grant-input','name':'grant-description'}, 'value'),
 
     Input("debug-edit-id", "children"),
-    Input("edit-grant-id", "data"),
+    State("edit-grant-id", "data"),
     prevent_initial_call=True
 )
-def load_all_grant_fields(_, grant_id):
-    print("Loading grant ID:", grant_id)
+def load_all_grant_fields(_,grant_id):
+    time.sleep(0.05)
+    print("Loading grant ID from load all grant is:", grant_id)
     if not grant_id:
         raise PreventUpdate
 
