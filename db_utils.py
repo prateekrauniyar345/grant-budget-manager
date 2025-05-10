@@ -20,3 +20,19 @@ def get_db_session():
     # Create a session factory
     Session = sessionmaker(bind=engine)
     return Session()
+
+
+# def get_db_session():
+#     # Path to your SQLite file (in the project root)
+#     # db_file = os.getenv("SQLITE_FILE", "demo.db")
+#     db_file = "/Volumes/ORICO/classess/cs360/cs360-project/instance/grant_management.db"
+
+#     # Use a SQLite URL; check_same_thread=False is needed if you’re re-using the session across threads
+#     engine = create_engine(
+#         f"sqlite:///{db_file}",
+#         connect_args={"check_same_thread": False}
+#     )
+
+#     # Create a session factory
+#     Session = sessionmaker(bind=engine)
+#     return Session()

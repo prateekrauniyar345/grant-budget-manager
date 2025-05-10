@@ -9,6 +9,7 @@ from dash import Dash, html, dcc, callback, Input, Output, page_container, page_
 import dash_bootstrap_components as dbc
 from flask_login import LoginManager, login_user, current_user
 import urllib
+from pathlib import Path
 
 
 
@@ -35,6 +36,20 @@ app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('DB_USER')}
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 
+
+### SQLite Database Configuration ###
+### SQLite Database Configuration for Demo ###
+# compute an absolute path next to this file
+# project_dir = Path(__file__).parent.resolve()
+# sqlite_path = Path(os.getenv("SQLITE_FILE", project_dir / "demo.db"))
+
+# make sure parent folder exists
+# sqlite_path = "/Volumes/ORICO/classess/cs360/cs360-project/instance/grant_management.db"
+
+# app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{sqlite_path}"
+# app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
+#     "connect_args": {"check_same_thread": False}
+# }
 
 db.init_app(app)  # Bind SQLAlchemy with the app
 bcrypt = Bcrypt(app)
@@ -292,6 +307,6 @@ def change_dash_app_heading(url):
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
     with app.app_context():
         db.create_all()
+    app.run(debug=True)
