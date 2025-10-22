@@ -1,7 +1,7 @@
 import dash
 from dash import html, dcc, Input, Output, State, ctx, callback
 import dash_bootstrap_components as dbc
-import dash_table
+from dash import dash_table
 import pandas as pd
 from sqlalchemy.orm import sessionmaker
 from db_utils import get_db_session

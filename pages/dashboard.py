@@ -13,7 +13,7 @@ from sqlalchemy import distinct, asc, func
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from models import Grant, GrantPersonnel, GrantTravel,TravelItinerary, GrantMaterial, ExpenseCategory, ExpenseSubcategory, PI, CoPI, ProfessionalStaff, Postdoc, GRA, Undergrad, TempHelp, NSFPersonnelCompensation, NIHPersonnelCompensation, NSFFringeRate, NIHFringeRate, GraduateStudentCost
-import dash_table
+from dash import dash_table
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from reportlab.platypus import (
