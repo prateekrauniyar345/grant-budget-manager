@@ -21,7 +21,8 @@ app = Flask(__name__, static_folder="static")
 app.secret_key = os.getenv("APP_SECRET_KEY")  # Required for flash messages
 
 # Enable CORS for all routes
-CORS(app, origins=["http://127.0.0.1:5000"])
+CORS(app, resources={r"/*": {"origins": os.getenv("CORS_ORIGINS", "*")}})
+
 
 
 # TiDB Cloud Database Configuration
