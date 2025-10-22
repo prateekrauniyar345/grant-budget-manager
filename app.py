@@ -140,14 +140,38 @@ def home():
 
 
 # Initialize Dash app
+# dash_app = Dash(
+#     __name__,
+#     server=app,
+#     external_stylesheets=[dbc.themes.BOOTSTRAP, "/assets/custom.css"],
+#     url_base_pathname="/home/",
+#     use_pages=True,
+#     suppress_callback_exceptions=True,
+# )
+# Initialize Dash app
 dash_app = Dash(
     __name__,
-    server=app,
-    external_stylesheets=[dbc.themes.BOOTSTRAP, "/assets/custom.css"],
+    server=app,  # keep your Flask app as the server
+    external_stylesheets=[dbc.themes.BOOTSTRAP],  # Dash auto-loads /assets; no need to list "/assets/custom.css" here
     url_base_pathname="/home/",
     use_pages=True,
     suppress_callback_exceptions=True,
 )
+
+# Expose the WSGI server for Gunicorn
+server = app  # <-- add this line (gunicorn will use app:server)
+
+# Health check endpoints for Render
+@server.get("/health-check")
+def health_check():
+    return "ok", 200
+
+# (optional but handy)
+@server.get("/")
+def root():
+    # Keep root lightweight; Dash UI is under /home/
+    return "ok", 200
+
 
 # Define the vertical navbar
 navbar = dbc.Nav(
@@ -314,6 +338,8 @@ def change_dash_app_heading(url):
 
 
 if __name__ == "__main__":
+    # Local dev: honor $PORT if present (Render uses gunicorn; this block is only for local runs)
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5003))
+    app.run(host="0.0.0.0", port=port, debug=True)
