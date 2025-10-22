@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS users (
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
-    password VARCHAR(255) NOT NULL,  -- Store hashed password
+    password VARCHAR(255) NOT NULL,  
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -54,17 +54,17 @@ INSERT INTO nih_personnel_compensation (role, y2_rate_increase, y3_rate_increase
 -- Table: expense_categories
 CREATE TABLE IF NOT EXISTS expense_categories (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE, -- Category name (e.g., "Equipment", "Travel")
-    description TEXT, -- Optional description of the category
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
  -- Table: expense_subcategories
 CREATE TABLE IF NOT EXISTS expense_subcategories (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    category_id INT NOT NULL, -- Foreign key linking to expense_categories
-    name VARCHAR(100) NOT NULL, -- Subcategory name (e.g., "Domestic", "International")
-    description TEXT, -- Optional description of the subcategory
+    category_id INT NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (category_id) REFERENCES expense_categories(id)
 );
@@ -227,14 +227,14 @@ INSERT INTO nih_fringe_rates (role, year, fringe_rate) VALUES
 -- Create the grants table
 CREATE TABLE IF NOT EXISTS grants (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,  -- Foreign key linking to users table
-    title VARCHAR(255) NOT NULL,  -- Grant title
-    description TEXT,  -- Detailed description of the grant
-    funding_agency VARCHAR(255) NOT NULL,  -- Name of the funding agency (e.g., NSF, NIH)
-    duration = db.Column(Integer, nullable=False) -- Duration of the grant in years
-    start_date DATE NOT NULL,  -- Start date of the grant
-    end_date DATE NOT NULL,  -- End date of the grant
-    status ENUM('Draft', 'Submitted', 'Approved', 'Rejected', 'Completed') DEFAULT 'Draft',  -- Grant status
+    user_id INT NOT NULL, 
+    title VARCHAR(255) NOT NULL, 
+    description TEXT, 
+    funding_agency VARCHAR(255) NOT NULL, 
+    duration = db.Column(Integer, nullable=False) 
+    start_date DATE NOT NULL, 
+    end_date DATE NOT NULL,  
+    status ENUM('Draft', 'Submitted', 'Approved', 'Rejected', 'Completed') DEFAULT 'Draft',  
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -428,7 +428,7 @@ INSERT INTO undergrad_table (full_name, email, position, expected_hourly_salary)
 -- one row per “travel” (domestic or international) in a separate itinerary table
 CREATE TABLE IF NOT EXISTS travel_itineraries (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  travel_id INT NOT NULL,  -- ← FK to grants_travel.id
+  travel_id INT NOT NULL, 
   departure_date DATE      NULL,
   arrival_date   DATE      NULL,
   flight_cost    DECIMAL(10,2) NULL,
@@ -450,9 +450,9 @@ CREATE TABLE IF NOT EXISTS travel_itineraries (
 CREATE TABLE graduate_student_costs (
     id INT AUTO_INCREMENT PRIMARY KEY,
     student_type VARCHAR(50) NOT NULL DEFAULT 'PhD',
-    base_tuition_per_semester DECIMAL(10,2) NOT NULL, -- e.g., 5408.00
-    summer_credit_cost DECIMAL(10,2) NOT NULL,        -- e.g., 601.00
-    health_insurance_cost DECIMAL(10,2) NOT NULL,     -- e.g., 1100.00
+    base_tuition_per_semester DECIMAL(10,2) NOT NULL, 
+    summer_credit_cost DECIMAL(10,2) NOT NULL,        
+    health_insurance_cost DECIMAL(10,2) NOT NULL,     
     num_semesters_per_year INT NOT NULL DEFAULT 2,
     annual_increase_percent DECIMAL(5,2) NOT NULL DEFAULT 3.00,
     total_years INT NOT NULL DEFAULT 3
@@ -462,7 +462,7 @@ INSERT INTO graduate_student_costs (
     summer_credit_cost,
     health_insurance_cost
 ) VALUES (
-    5408.00,   -- Tuition
-    601.00,    -- Summer Credit
-    1100.00    -- Health Insurance
+    5408.00,  
+    601.00,   
+    1100.00    
 );
