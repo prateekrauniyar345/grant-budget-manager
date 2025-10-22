@@ -1,8 +1,8 @@
 -- Create the database
-CREATE DATABASE IF NOT EXISTS grant_management;
+CREATE DATABASE IF NOT EXISTS grant_budget_generator;
 
 -- Use the database
-USE grant_management;
+USE grant_budget_generator;
 
 -- Create the users table with first_name and last_name
 CREATE TABLE IF NOT EXISTS users (
@@ -226,19 +226,22 @@ INSERT INTO nih_fringe_rates (role, year, fringe_rate) VALUES
 
 -- Create the grants table
 CREATE TABLE IF NOT EXISTS grants (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL, 
-    title VARCHAR(255) NOT NULL, 
-    description TEXT, 
-    funding_agency VARCHAR(255) NOT NULL, 
-    duration = db.Column(Integer, nullable=False) 
-    start_date DATE NOT NULL, 
-    end_date DATE NOT NULL,  
-    status ENUM('Draft', 'Submitted', 'Approved', 'Rejected', 'Completed') DEFAULT 'Draft',  
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  funding_agency VARCHAR(255) NOT NULL,
+  duration INT NOT NULL,
+  start_date DATE NOT NULL,
+  end_date DATE NOT NULL,
+  status ENUM('Draft','Submitted','Approved','Rejected','Completed') DEFAULT 'Draft',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_grants_user
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+
 
 
 
