@@ -24,16 +24,23 @@ app.secret_key = os.getenv("APP_SECRET_KEY")  # Required for flash messages
 CORS(app, origins=["http://127.0.0.1:5000"])
 
 
-# MySQL Database Configuration
-# MySQL Database Configuration
-mysql_password = os.getenv('DB_PASSWORD')
-print("mysql password is : ", mysql_password)
-db_password_quoted = urllib.parse.quote(mysql_password)
-print("hashed password is : ", db_password_quoted)
+# TiDB Cloud Database Configuration
+# Using TiDB cloud database for all connections
+tidb_connection_string = os.getenv('TiDB_CONNECTION_STRING')
 
-# MySQL Database Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{os.getenv('DB_HOST')}:{os.getenv('DB_PORT')}/{os.getenv('DB_NAME')}"
+if not tidb_connection_string:
+    raise ValueError("TiDB_CONNECTION_STRING not found in environment variables!")
+
+app.config['SQLALCHEMY_DATABASE_URI'] = tidb_connection_string
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# Add engine options for better connection handling
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,      # Verify connections before using
+    'pool_recycle': 3600,       # Recycle connections after 1 hour
+    'pool_size': 5,             # Connection pool size
+    'max_overflow': 10,         # Maximum overflow connections
+}
 
 
 
